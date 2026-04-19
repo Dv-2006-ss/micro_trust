@@ -6,10 +6,16 @@ import pytesseract
 import logging
 
 # ── Tesseract Binary Path (Environment Aware) ──────────────────────────────
-_TESSERACT_PATH = os.getenv('TESSERACT_PATH', '/usr/bin/tesseract')
+if os.name == 'nt':
+    _default_tesseract = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+else:
+    _default_tesseract = '/usr/bin/tesseract'
+
+_TESSERACT_PATH = os.getenv('TESSERACT_PATH', _default_tesseract)
 # Set unconditionally — pytesseract will raise a clear error if missing
 pytesseract.pytesseract.tesseract_cmd = _TESSERACT_PATH
-if not os.path.exists(_TESSERACT_PATH) and os.name == 'nt':
+
+if not os.path.exists(_TESSERACT_PATH):
     import logging as _lg
     _lg.getLogger(__name__).critical(
         "\n"
