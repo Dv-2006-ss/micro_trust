@@ -30,7 +30,7 @@ kmeans_cluster = MerchantPersonaKMeans(n_clusters=3)
 
 @app.get("/")
 async def health_check():
-    return {"status": "online"}
+    return {"status": "active"}
 
 
 # ── Roast Engine: NLG Module ──────────────────────────────────────────────
