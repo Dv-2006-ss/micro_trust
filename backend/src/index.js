@@ -33,7 +33,7 @@ app.use('/api/v1/reports', reportsRoutes);
 
 // General route wrapper
 app.get('/', (req, res) => {
-    res.json({ message: "Node.js API Orchestrator is running." });
+    res.json({ status: 'Backend is Online' });
 });
 
 app.listen(PORT, () => {

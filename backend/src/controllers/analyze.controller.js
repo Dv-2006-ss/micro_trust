@@ -83,9 +83,6 @@ export const analyzePassbook = async (req, res, next) => {
 
     } catch (error) {
         console.error("[Node.js Orchestrator Error Detailed]", error);
-        res.status(500).json({ 
-            error: 'Intelligence Engine integration failure.', 
-            details: error.message 
-        });
+        res.status(500).json({ error: 'Internal Server Error' });
     }
 };
