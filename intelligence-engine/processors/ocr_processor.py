@@ -5,11 +5,11 @@ from PIL import Image
 import pytesseract
 import logging
 
-# ── Tesseract Binary Path (Windows) ──────────────────────────────────────
-_TESSERACT_PATH = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+# ── Tesseract Binary Path (Environment Aware) ──────────────────────────────
+_TESSERACT_PATH = os.getenv('TESSERACT_PATH', '/usr/bin/tesseract')
 # Set unconditionally — pytesseract will raise a clear error if missing
 pytesseract.pytesseract.tesseract_cmd = _TESSERACT_PATH
-if not os.path.exists(_TESSERACT_PATH):
+if not os.path.exists(_TESSERACT_PATH) and os.name == 'nt':
     import logging as _lg
     _lg.getLogger(__name__).critical(
         "\n"
