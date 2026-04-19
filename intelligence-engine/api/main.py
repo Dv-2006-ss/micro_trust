@@ -213,7 +213,11 @@ async def analyze_data(
         forecast = generate_forecast(credit_score, cluster_info["persona"])
 
         # 6. SHAP Explainability
-        shap_values = calculate_shap_values(structured_data, credit_score)
+        try:
+            shap_values = calculate_shap_values(structured_data, credit_score)
+        except Exception as e:
+            logger.error(f"SHAP calculation failed: {e}")
+            shap_values = []
 
         # 7. Smart Card Recommendations — bank-aware
         cards = recommend_cards(credit_score, cluster_info["persona"], primary_bank or '')

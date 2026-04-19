@@ -44,6 +44,9 @@ export const analyzePassbook = async (req, res, next) => {
             body: form,
             // DO NOT manually set Content-Type header! Native fetch handles the boundary dynamically.
             signal: AbortSignal.timeout(60000) // Increase execution timeout to 60 seconds
+        }).catch(err => {
+            console.error(`[Fetch Error] Cannot connect to pythonApiUrl: ${pythonApiUrl}`);
+            throw err;
         });
 
         if (!response.ok) {
