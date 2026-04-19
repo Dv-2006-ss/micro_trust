@@ -1,0 +1,178 @@
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+@import "animate.css";
+
+/* ============================================
+   MICRO-TRUST V2 — GLOBAL DESIGN SYSTEM
+   ============================================ */
+
+:root {
+  --neon-cyan: #06b6d4;
+  --neon-indigo: #6366f1;
+  --neon-green: #10b981;
+  --bg-deep: #020617;
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-border: rgba(255, 255, 255, 0.08);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-deep);
+  color: white;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Lenis Smooth Scroll */
+html.lenis, html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+.lenis.lenis-smooth iframe {
+  pointer-events: none;
+}
+
+/* ============================================
+   GLASSMORPHISM 2.0 UTILITY CLASSES
+   ============================================ */
+.glass-card {
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(6, 182, 212, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+.glass-card-hover {
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.glass-card-hover:hover {
+  border-color: rgba(6, 182, 212, 0.4);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 24px rgba(6, 182, 212, 0.1), inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+/* ============================================
+   NEON GLOW UTILITIES
+   ============================================ */
+.neon-text-cyan {
+  text-shadow: 0 0 20px rgba(6, 182, 212, 0.8), 0 0 40px rgba(6, 182, 212, 0.4);
+}
+
+.neon-border {
+  border: 1px solid var(--neon-cyan);
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.3), inset 0 0 10px rgba(6, 182, 212, 0.05);
+}
+
+.neon-btn {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+.neon-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(6,182,212,0.15) 0%, transparent 50%, rgba(99,102,241,0.15) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.neon-btn:hover::before { opacity: 1; }
+
+/* ============================================
+   THREE.JS CANVAS
+   ============================================ */
+#trust-sphere-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ============================================
+   DATA INTEGRITY TICKER
+   ============================================ */
+.ticker-scroll {
+  display: flex;
+  animation: tickerScroll 30s linear infinite;
+  white-space: nowrap;
+}
+.ticker-scroll:hover {
+  animation-play-state: paused;
+}
+@keyframes tickerScroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+/* ============================================
+   NEON SCAN LINE
+   ============================================ */
+@keyframes neonScan {
+  0%   { top: 0%; opacity: 1; }
+  50%  { top: calc(100% - 3px); opacity: 0.7; }
+  100% { top: 0%; opacity: 1; }
+}
+
+/* ============================================
+   SCORE COUNTER REVEAL
+   ============================================ */
+.score-reveal {
+  background: linear-gradient(135deg, #06b6d4, #6366f1);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ============================================
+   XAI PROGRESS BAR GLOW
+   ============================================ */
+.xai-bar-green  { box-shadow: 0 0 12px 2px rgba(16, 185, 129, 0.6); }
+.xai-bar-red    { box-shadow: 0 0 12px 2px rgba(239, 68,  68,  0.6); }
+.xai-bar-cyan   { box-shadow: 0 0 12px 2px rgba(6,  182, 212, 0.6); }
+
+/* ============================================
+   SHAKE ANIMATION FOR FAILED AUTH
+   ============================================ */
+.shake {
+  animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+}
+@keyframes shake {
+  10%, 90%  { transform: translateX(-2px); }
+  20%, 80%  { transform: translateX(4px); }
+  30%, 50%, 70% { transform: translateX(-6px); }
+  40%, 60%  { transform: translateX(6px); }
+}
+
+/* ============================================
+   GRID PATTERN BACKGROUND
+   ============================================ */
+.cyber-grid {
+  background-image:
+    linear-gradient(rgba(6,182,212,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(6,182,212,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ============================================
+   SCROLLBAR STYLING
+   ============================================ */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: #020617; }
+::-webkit-scrollbar-thumb { background: rgba(6,182,212,0.4); border-radius: 100px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(6,182,212,0.8); }

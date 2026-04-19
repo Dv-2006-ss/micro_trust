@@ -1,0 +1,108 @@
+import { Injectable, signal, resource, computed } from '@angular/core';
+import { environment } from '../../environments/environment';
+
+export interface ForecastPoint {
+  month: string;
+  value: number;
+}
+
+export interface ShapValues {
+  income_stability: number;
+  spending_risk: number;
+  liquidity_buffer: number;
+  transaction_regularity: number;
+}
+
+export interface CardRecommendation {
+  card: string;
+  type: string;
+  reward: string;
+  limit: string;
+}
+
+export interface AnalysisData {
+  merchant_id: string;
+  credit_score: number;
+  risk_level: string;
+  approval_status: boolean;
+  persona: string;
+  suggested_interest: string;
+  roast: string;
+  forecast: ForecastPoint[];
+  shap: ShapValues;
+  recommended_cards: CardRecommendation[];
+  banks: any[];
+}
+
+@Injectable({
+  providedIn: 'root'
+})
+export class ResourceApiService {
+  // Parameters for the resource loader
+  private queryParams = signal<{ file: File; merchantId: string; pdfPassword?: string; primaryBank?: string } | null>(null);
+
+  // New Angular experimental resource API (aligned for v19+)
+  // Re-runs the loader automatically whenever the request signal (queryParams) changes
+  public readonly creditScoreResource = resource<AnalysisData, { file: File; merchantId: string, pdfPassword?: string, primaryBank?: string } | null>({
+    params: () => this.queryParams(),
+    loader: async ({ params: request }) => {
+      if (!request) return null as any; // Initial Idle State
+
+      console.log(`[Frontend] Initiating Analysis for Merchant: ${request.merchantId}`);
+      try {
+        const formData = new FormData();
+        formData.append('passbook_file', request.file);
+        formData.append('merchant_id', request.merchantId);
+
+        if (request.pdfPassword) {
+            formData.append('pdf_password', request.pdfPassword);
+        }
+        if (request.primaryBank) {
+            formData.append('primary_bank', request.primaryBank);
+        }
+
+        // Safely extract token + primary_bank from localStorage
+        const stored = localStorage.getItem('microtrust_user');
+        const parsed = stored ? JSON.parse(stored) : {};
+        const token = parsed.token || '';
+
+        // Pointing to Node.js Orchestrator protected route
+        const response = await fetch(`${environment.apiUrl}/api/v1/analyze`, {
+          method: 'POST',
+          body: formData,
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) {
+          throw new Error(`API responded with status: ${response.status}`);
+        }
+
+        return await response.json();
+      } catch (error) {
+        console.error('OCR/ML Processing submission failed', error);
+        throw error;
+      }
+    }
+  });
+
+  // Action dispatcher — now carries primary_bank from stored user
+  public analyzePassbook(fileData: File, merchantId: string, pdfPassword?: string) {
+    const stored = localStorage.getItem('microtrust_user');
+    const primaryBank = stored ? (JSON.parse(stored).primary_bank || '') : '';
+    this.queryParams.set({ file: fileData, merchantId, pdfPassword, primaryBank });
+  }
+
+  public reset() {
+    this.queryParams.set(null);
+  }
+
+  // Helper to check if analysis results are available
+  public hasResult(): boolean {
+    return !!this.creditScoreResource.value();
+  }
+
+  // Helper to get the latest analysis data
+  public getLatestResult(): AnalysisData | undefined {
+    return this.creditScoreResource.value();
+  }
+}

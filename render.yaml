@@ -1,0 +1,56 @@
+# Micro-Trust V2 — Render Deployment
+# Deploy all three services from one repo using Render's render.yaml
+
+services:
+  # ── 1. Node.js Orchestrator (API) ──────────────────────────────────────
+  - type: web
+    name: microtrust-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: PYTHON_API_URL
+        fromService:
+          name: microtrust-intelligence
+          type: web
+          property: host
+      - key: MONGODB_URI
+        sync: false      # Set manually in Render dashboard
+      - key: JWT_SECRET
+        sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: NODE_ENV
+        value: production
+
+  # ── 2. Python Intelligence Engine ──────────────────────────────────────
+  - type: web
+    name: microtrust-intelligence
+    runtime: python
+    rootDir: intelligence-engine
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: KAGGLE_USERNAME
+        sync: false
+      - key: KAGGLE_KEY
+        sync: false
+
+  # ── 3. Angular Frontend (Static Site) ──────────────────────────────────
+  - type: web
+    name: microtrust-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist/frontend/browser
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
