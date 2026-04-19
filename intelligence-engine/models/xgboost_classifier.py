@@ -15,11 +15,11 @@ class CreditApprovalXGBoost:
     Includes Feature Engineering (StandardScaler & One-Hot Encoding) mapped to the curriculum.
     """
     def __init__(self):
-        from pathlib import Path
+        import os
         import joblib
-        model_path = Path(__file__).resolve().parent.parent / "saved_models" / "xgboost_pipeline.pkl"
+        model_path = os.path.join(os.path.dirname(__file__), '..', 'saved_models', 'xgboost_pipeline.pkl')
         
-        if model_path.exists():
+        if os.path.exists(model_path):
             self.pipeline = joblib.load(model_path)
             logger.info("Loaded pre-trained XGBoost pipeline from disk.")
         else:

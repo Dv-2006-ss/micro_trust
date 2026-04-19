@@ -630,7 +630,8 @@ export class SettingsComponent implements OnInit, AfterViewInit {
     this.profileSaving = true;
     try {
       const token = this.authService.currentUser()?.token ?? '';
-      const response = await fetch(`${environment.apiUrl}/api/auth/profile`, {
+      const authUrl = environment.apiUrl.replace('/v1', '/auth');
+      const response = await fetch(`${authUrl}/profile`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({

@@ -305,7 +305,8 @@ export class RegisterComponent implements OnDestroy {
     this.checkingUsername.set(true);
     this.usernameTimeout = setTimeout(async () => {
       try {
-        const res = await fetch(`${environment.apiUrl}/api/auth/check-username?username=${encodeURIComponent(this.username)}`);
+        const authUrl = environment.apiUrl.replace('/v1', '/auth');
+        const res = await fetch(`${authUrl}/check-username?username=${encodeURIComponent(this.username)}`);
         const data = await res.json();
         if (res.ok) {
           this.usernameAvailable.set(data.available);
@@ -390,7 +391,8 @@ export class RegisterComponent implements OnDestroy {
     this.errorMsg.set('');
     
     try {
-      const res = await fetch(`${environment.apiUrl}/api/auth/register`, {
+      const authUrl = environment.apiUrl.replace('/v1', '/auth');
+      const res = await fetch(`${authUrl}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 

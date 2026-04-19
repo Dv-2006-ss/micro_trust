@@ -34,7 +34,7 @@ export interface HistoryState {
 export class HistoryService {
   private auth = inject(AuthService);
 
-  private readonly API = `${environment.apiUrl}/api/v1/reports`;
+  private readonly API = `${environment.apiUrl}/reports`;
 
   // ── Angular Signals ──────────────────────────────────────────────────────
   private stateSignal = signal<HistoryState>({

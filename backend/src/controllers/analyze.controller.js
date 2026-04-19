@@ -39,7 +39,8 @@ export const analyzePassbook = async (req, res, next) => {
         // Perform the fetch request to the Python microservice
         const pythonApiUrl = process.env.PYTHON_API_URL || 'http://127.0.0.1:8000';
         
-        const response = await fetch(`${pythonApiUrl}/api/v1/analyze-data`, {
+        const baseUrl = pythonApiUrl.replace(/\/+$/, '');
+        const response = await fetch(`${baseUrl}/analyze`, {
             method: 'POST',
             body: form,
             // DO NOT manually set Content-Type header! Native fetch handles the boundary dynamically.

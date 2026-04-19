@@ -16,11 +16,11 @@ class MerchantPersonaKMeans:
         self.n_clusters = n_clusters
         
         # Look for pre-trained model
-        from pathlib import Path
+        import os
         import joblib
-        model_path = Path(__file__).resolve().parent.parent / "saved_models" / "kmeans_pipeline.pkl"
+        model_path = os.path.join(os.path.dirname(__file__), '..', 'saved_models', 'kmeans_pipeline.pkl')
         
-        if model_path.exists():
+        if os.path.exists(model_path):
             self.pipeline = joblib.load(model_path)
             logger.info("Loaded pre-trained KMeans pipeline from disk.")
         else:

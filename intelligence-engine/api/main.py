@@ -28,6 +28,10 @@ ocr_processor = SecureOCRProcessor()
 xgb_classifier = CreditApprovalXGBoost()
 kmeans_cluster = MerchantPersonaKMeans(n_clusters=3)
 
+@app.get("/")
+async def health_check():
+    return {"status": "online"}
+
 
 # ── Roast Engine: NLG Module ──────────────────────────────────────────────
 ROASTS_BY_TIER = {
@@ -177,7 +181,7 @@ def recommend_cards(credit_score: int, persona: str, primary_bank: str = '') -> 
     return primary_matches[:3]
 
 
-@app.post("/api/v1/analyze-data")
+@app.post("/analyze")
 async def analyze_data(
     merchant_id: str = Form(...),
     username: str = Form(None),

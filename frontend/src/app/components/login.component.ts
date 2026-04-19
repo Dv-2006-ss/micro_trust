@@ -222,7 +222,8 @@ export class LoginComponent implements OnDestroy {
     this.isLoading.set(true);
     this.errorMsg.set('');
     try {
-      const res = await fetch(`${environment.apiUrl}/api/auth/login`, {
+      const authUrl = environment.apiUrl.replace('/v1', '/auth');
+      const res = await fetch(`${authUrl}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: this.username, password: this.password })

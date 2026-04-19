@@ -67,7 +67,7 @@ export class ResourceApiService {
         const token = parsed.token || '';
 
         // Pointing to Node.js Orchestrator protected route
-        const response = await fetch(`${environment.apiUrl}/api/v1/analyze`, {
+        const response = await fetch(`${environment.apiUrl}/analyze`, {
           method: 'POST',
           body: formData,
           headers: { 'Authorization': `Bearer ${token}` }
