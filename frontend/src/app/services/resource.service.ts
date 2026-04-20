@@ -6,11 +6,9 @@ export interface ForecastPoint {
   value: number;
 }
 
-export interface ShapValues {
-  income_stability: number;
-  spending_risk: number;
-  liquidity_buffer: number;
-  transaction_regularity: number;
+export interface ShapFeature {
+  name: string;
+  value: number;
 }
 
 export interface CardRecommendation {
@@ -20,7 +18,7 @@ export interface CardRecommendation {
   limit: string;
 }
 
-export interface AnalysisData {
+export interface AnalysisResponse {
   merchant_id: string;
   credit_score: number;
   risk_level: string;
@@ -29,7 +27,7 @@ export interface AnalysisData {
   suggested_interest: string;
   roast: string;
   forecast: ForecastPoint[];
-  shap: ShapValues;
+  shap: ShapFeature[];
   recommended_cards: CardRecommendation[];
   banks: any[];
 }
@@ -43,7 +41,7 @@ export class ResourceApiService {
 
   // New Angular experimental resource API (aligned for v19+)
   // Re-runs the loader automatically whenever the request signal (queryParams) changes
-  public readonly creditScoreResource = resource<AnalysisData, { file: File; merchantId: string, pdfPassword?: string, primaryBank?: string } | null>({
+  public readonly creditScoreResource = resource<AnalysisResponse, { file: File; merchantId: string, pdfPassword?: string, primaryBank?: string } | null>({
     params: () => this.queryParams(),
     loader: async ({ params: request }) => {
       if (!request) return null as any; // Initial Idle State
@@ -102,7 +100,7 @@ export class ResourceApiService {
   }
 
   // Helper to get the latest analysis data
-  public getLatestResult(): AnalysisData | undefined {
+  public getLatestResult(): AnalysisResponse | undefined {
     return this.creditScoreResource.value();
   }
 }

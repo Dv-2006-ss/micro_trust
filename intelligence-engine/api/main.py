@@ -125,17 +125,17 @@ def calculate_shap_values(structured_data: dict, credit_score: int) -> dict:
     avg_balance = structured_data.get("average_balance", 0)
     txn_count = structured_data.get("transaction_count", 0)
     
-    income_stability = min(95, max(15, int((avg_balance / 500) * 10 + credit_score / 12)))
-    spending_risk = min(95, max(10, 100 - int(credit_score / 9)))
-    liquidity = min(90, max(10, int(avg_balance / 300 + txn_count * 2)))
-    txn_regularity = min(95, max(20, int(txn_count * 3.5 + credit_score / 15)))
+    income_stability = float(min(95, max(15, int((avg_balance / 500) * 10 + credit_score / 12))))
+    spending_risk = float(min(95, max(10, 100 - int(credit_score / 9))))
+    liquidity = float(min(90, max(10, int(avg_balance / 300 + txn_count * 2))))
+    txn_regularity = float(min(95, max(20, int(txn_count * 3.5 + credit_score / 15))))
     
-    return {
-        "income_stability": income_stability,
-        "spending_risk": spending_risk,
-        "liquidity_buffer": liquidity,
-        "transaction_regularity": txn_regularity,
-    }
+    return [
+        {"name": "income_stability", "value": income_stability},
+        {"name": "spending_risk", "value": spending_risk},
+        {"name": "liquidity_buffer", "value": liquidity},
+        {"name": "transaction_regularity", "value": txn_regularity}
+    ]
 
 
 # ── Bank-Aware Smart Card Recommendations ────────────────────────────────

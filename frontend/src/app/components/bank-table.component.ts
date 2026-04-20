@@ -148,12 +148,11 @@ import * as confetti from 'canvas-confetti';
                     <!-- Placeholder when SHAP data is missing or empty -->
                     <div class="flex flex-col items-center justify-center py-10 space-y-3">
                       <div class="w-12 h-12 rounded-xl flex items-center justify-center" style="background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.15);">
-                        <svg class="w-6 h-6 text-indigo-400 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg class="w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                         </svg>
                       </div>
-                      <p class="text-indigo-300 text-sm font-bold animate-pulse">Insights Generating...</p>
-                      <p class="text-gray-600 text-xs">SHAP explainability values are being computed</p>
+                      <p class="text-indigo-300 text-sm font-bold">No distinctive features found</p>
                     </div>
                   }
                 </div>
@@ -540,21 +539,27 @@ export class BankTableComponent {
   // ── SHAP Feature Importance factors (dynamic from API) ──
   shapFactors = computed(() => {
     const shap = this.result?.shap;
-    // Guard: SHAP can be null, undefined, an empty array [], or a valid object {}
-    if (!shap || Array.isArray(shap) || typeof shap !== 'object') return [];
-    // Ensure all expected keys exist with safe defaults
-    const s = {
-      income_stability: shap.income_stability ?? 0,
-      spending_risk: shap.spending_risk ?? 0,
-      liquidity_buffer: shap.liquidity_buffer ?? 0,
-      transaction_regularity: shap.transaction_regularity ?? 0,
-    };
-    return [
-      { label: 'Income Stability',        value: s.income_stability,       color: '#34d399', gradient: 'linear-gradient(90deg,#059669,#34d399)', glow: 'rgba(16,185,129,0.5)' },
-      { label: 'Spending Risk',           value: s.spending_risk,          color: '#fb923c', gradient: 'linear-gradient(90deg,#dc2626,#fb923c)', glow: 'rgba(239,68,68,0.5)' },
-      { label: 'Liquidity Buffer',        value: s.liquidity_buffer,       color: '#67e8f9', gradient: 'linear-gradient(90deg,#0891b2,#818cf8)', glow: 'rgba(6,182,212,0.5)' },
-      { label: 'Transaction Regularity',  value: s.transaction_regularity, color: '#c084fc', gradient: 'linear-gradient(90deg,#7c3aed,#c084fc)', glow: 'rgba(139,92,246,0.5)' },
-    ];
+    // Guard: ensure SHAP is an array and not empty
+    if (!shap || !Array.isArray(shap) || shap.length === 0) return [];
+    
+    return shap.map((s: any) => {
+      const labelStr = s.name.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      let color, gradient, glow;
+      if (s.name === 'income_stability') {
+          color = '#34d399'; gradient = 'linear-gradient(90deg,#059669,#34d399)'; glow = 'rgba(16,185,129,0.5)';
+      } else if (s.name === 'spending_risk') {
+          color = '#fb923c'; gradient = 'linear-gradient(90deg,#dc2626,#fb923c)'; glow = 'rgba(239,68,68,0.5)';
+      } else if (s.name === 'liquidity_buffer') {
+          color = '#67e8f9'; gradient = 'linear-gradient(90deg,#0891b2,#818cf8)'; glow = 'rgba(6,182,212,0.5)';
+      } else {
+          color = '#c084fc'; gradient = 'linear-gradient(90deg,#7c3aed,#c084fc)'; glow = 'rgba(139,92,246,0.5)';
+      }
+      return {
+          label: labelStr,
+          value: Number(s.value),
+          color, gradient, glow
+      };
+    });
   });
 
   // ── Explicit Angular computed signals for Live Real-Time GUI Binding ──

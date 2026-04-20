@@ -450,6 +450,9 @@ export class DashboardComponent implements AfterViewInit, OnDestroy {
   // ── Tri-state view machine ──────────────────────────────────────────────
   viewState: 'AWAITING' | 'PROCESSING' | 'RESULT' = 'AWAITING';
 
+  // ── Architectural Mapping Requirement ─────────────────────────────────────
+  shapData: any[] = [];
+
   constructor() {
     // Watch the resource API and transition to RESULT when data arrives
     effect(() => {
@@ -461,6 +464,12 @@ export class DashboardComponent implements AfterViewInit, OnDestroy {
         this.viewState = 'PROCESSING';
       } else if (value || error) {
         this.viewState = 'RESULT';
+        // Architecture strictness: Ensures this.shapData is never null
+        if (value && value.shap) {
+          this.shapData = Array.isArray(value.shap) ? value.shap : [];
+        } else {
+          this.shapData = [];
+        }
       }
     });
   }
