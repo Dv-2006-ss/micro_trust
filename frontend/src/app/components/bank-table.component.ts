@@ -129,18 +129,31 @@ import * as confetti from 'canvas-confetti';
                 </div>
 
                 <div class="space-y-4">
-                  @for (factor of shapFactors(); track factor.label) {
-                    <div class="shap-factor-row" style="opacity: 0;">
-                      <div class="flex justify-between text-xs font-bold uppercase tracking-wider mb-1.5">
-                        <span class="text-gray-400">{{ factor.label }}</span>
-                        <span [style.color]="factor.color">{{ factor.value }}%</span>
+                  @if (shapFactors().length > 0) {
+                    @for (factor of shapFactors(); track factor.label) {
+                      <div class="shap-factor-row" style="opacity: 0;">
+                        <div class="flex justify-between text-xs font-bold uppercase tracking-wider mb-1.5">
+                          <span class="text-gray-400">{{ factor.label }}</span>
+                          <span [style.color]="factor.color">{{ factor.value }}%</span>
+                        </div>
+                        <div class="relative w-full h-2.5 rounded-full overflow-hidden" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.04);">
+                          <div class="absolute inset-y-0 left-0 rounded-full transition-all duration-1000"
+                               [style.width.%]="factor.value"
+                               [style.background]="factor.gradient"
+                               [style.boxShadow]="'0 0 12px 2px ' + factor.glow"></div>
+                        </div>
                       </div>
-                      <div class="relative w-full h-2.5 rounded-full overflow-hidden" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.04);">
-                        <div class="absolute inset-y-0 left-0 rounded-full transition-all duration-1000"
-                             [style.width.%]="factor.value"
-                             [style.background]="factor.gradient"
-                             [style.boxShadow]="'0 0 12px 2px ' + factor.glow"></div>
+                    }
+                  } @else {
+                    <!-- Placeholder when SHAP data is missing or empty -->
+                    <div class="flex flex-col items-center justify-center py-10 space-y-3">
+                      <div class="w-12 h-12 rounded-xl flex items-center justify-center" style="background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.15);">
+                        <svg class="w-6 h-6 text-indigo-400 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
                       </div>
+                      <p class="text-indigo-300 text-sm font-bold animate-pulse">Insights Generating...</p>
+                      <p class="text-gray-600 text-xs">SHAP explainability values are being computed</p>
                     </div>
                   }
                 </div>
@@ -325,8 +338,8 @@ import * as confetti from 'canvas-confetti';
         </div>
       }
 
-      <!-- ═══════════════  IDLE STATE  ═══════════════ -->
-      @else {
+      <!-- ═══════════════  IDLE STATE — only when no result exists  ═══════════════ -->
+      @if (!scoreResource.value() && !scoreResource.isLoading() && !scoreResource.error()) {
         <div class="glass-card rounded-3xl p-8">
           <div class="py-16 text-center">
             <div class="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-6"
@@ -527,12 +540,20 @@ export class BankTableComponent {
   // ── SHAP Feature Importance factors (dynamic from API) ──
   shapFactors = computed(() => {
     const shap = this.result?.shap;
-    if (!shap) return [];
+    // Guard: SHAP can be null, undefined, an empty array [], or a valid object {}
+    if (!shap || Array.isArray(shap) || typeof shap !== 'object') return [];
+    // Ensure all expected keys exist with safe defaults
+    const s = {
+      income_stability: shap.income_stability ?? 0,
+      spending_risk: shap.spending_risk ?? 0,
+      liquidity_buffer: shap.liquidity_buffer ?? 0,
+      transaction_regularity: shap.transaction_regularity ?? 0,
+    };
     return [
-      { label: 'Income Stability',        value: shap.income_stability,       color: '#34d399', gradient: 'linear-gradient(90deg,#059669,#34d399)', glow: 'rgba(16,185,129,0.5)' },
-      { label: 'Spending Risk',           value: shap.spending_risk,          color: '#fb923c', gradient: 'linear-gradient(90deg,#dc2626,#fb923c)', glow: 'rgba(239,68,68,0.5)' },
-      { label: 'Liquidity Buffer',        value: shap.liquidity_buffer,       color: '#67e8f9', gradient: 'linear-gradient(90deg,#0891b2,#818cf8)', glow: 'rgba(6,182,212,0.5)' },
-      { label: 'Transaction Regularity',  value: shap.transaction_regularity, color: '#c084fc', gradient: 'linear-gradient(90deg,#7c3aed,#c084fc)', glow: 'rgba(139,92,246,0.5)' },
+      { label: 'Income Stability',        value: s.income_stability,       color: '#34d399', gradient: 'linear-gradient(90deg,#059669,#34d399)', glow: 'rgba(16,185,129,0.5)' },
+      { label: 'Spending Risk',           value: s.spending_risk,          color: '#fb923c', gradient: 'linear-gradient(90deg,#dc2626,#fb923c)', glow: 'rgba(239,68,68,0.5)' },
+      { label: 'Liquidity Buffer',        value: s.liquidity_buffer,       color: '#67e8f9', gradient: 'linear-gradient(90deg,#0891b2,#818cf8)', glow: 'rgba(6,182,212,0.5)' },
+      { label: 'Transaction Regularity',  value: s.transaction_regularity, color: '#c084fc', gradient: 'linear-gradient(90deg,#7c3aed,#c084fc)', glow: 'rgba(139,92,246,0.5)' },
     ];
   });
 

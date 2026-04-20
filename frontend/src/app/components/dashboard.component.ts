@@ -1,6 +1,6 @@
 import {
   Component, inject, signal, ViewChild, ElementRef,
-  AfterViewInit, OnDestroy, HostListener, NgZone
+  AfterViewInit, OnDestroy, HostListener, NgZone, effect
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
@@ -124,7 +124,8 @@ import * as confetti from 'canvas-confetti';
           <p class="text-gray-500 text-sm tracking-wide">Upload a passbook → OCR extracts data → XGBoost scores the merchant</p>
         </div>
 
-        <!-- Upload Card -->
+        <!-- Upload Card — fully removed from DOM once analysis results arrive -->
+        @if (viewState !== 'RESULT') {
         <section class="card-glass animate__animated animate__fadeInUp rounded-3xl p-8 mb-8"
                  style="animation-delay: 0.1s; animation-fill-mode: both;">
 
@@ -201,9 +202,12 @@ import * as confetti from 'canvas-confetti';
             </div>
           }
         </section>
+        }
 
-        <!-- Intelligence Results -->
+        <!-- Intelligence Results — only shown after analysis starts -->
+        @if (viewState !== 'AWAITING') {
         <app-bank-table></app-bank-table>
+        }
 
         <!-- Save Analysis Button -->
         @if (resourceService.hasResult()) {
@@ -420,6 +424,24 @@ export class DashboardComponent implements AfterViewInit, OnDestroy {
   userMenuOpen = false;
   merchantIdMock = 'M_' + Math.random().toString(36).substring(2, 9).toUpperCase();
 
+  // ── Tri-state view machine ──────────────────────────────────────────────
+  viewState: 'AWAITING' | 'PROCESSING' | 'RESULT' = 'AWAITING';
+
+  constructor() {
+    // Watch the resource API and transition to RESULT when data arrives
+    effect(() => {
+      const value = this.resourceService.creditScoreResource.value();
+      const isLoading = this.resourceService.creditScoreResource.isLoading();
+      const error = this.resourceService.creditScoreResource.error();
+
+      if (isLoading) {
+        this.viewState = 'PROCESSING';
+      } else if (value || error) {
+        this.viewState = 'RESULT';
+      }
+    });
+  }
+
   toggleUserMenu() {
     this.userMenuOpen = !this.userMenuOpen;
     if (this.userMenuOpen) {
@@ -593,6 +615,7 @@ export class DashboardComponent implements AfterViewInit, OnDestroy {
     const file = this.pdfService.uploadReadyFile();
     const pdfPassword = this.pdfService.currentPassword();
     if (file) {
+      this.viewState = 'PROCESSING';
       this.resourceService.analyzePassbook(file, this.merchantIdMock, pdfPassword);
     }
   }
