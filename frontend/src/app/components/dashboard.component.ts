@@ -13,7 +13,8 @@ import { PdfSecurityService } from '../services/pdf-security.service';
 import { HistoryService } from '../services/history.service';
 import gsap from 'gsap';
 import * as THREE from 'three';
-import * as confetti from 'canvas-confetti';
+import * as _confetti from 'canvas-confetti';
+const confetti = (_confetti as any).default || _confetti;
 
 @Component({
   selector: 'app-dashboard',
