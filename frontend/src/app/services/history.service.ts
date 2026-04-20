@@ -141,7 +141,7 @@ export class HistoryService {
   }
 
   // ── Requested saveRecord method ──────────────────────────────────────────
-  async saveRecord(payload: { credit_score: number, persona: string, suggested_interest: string }): Promise<{ message: string } | null> {
+  async saveRecord(payload: { credit_score: number, persona: string, suggested_interest: string, displayName?: string }): Promise<{ message: string } | null> {
     try {
       const response = await fetch(`${environment.apiUrl}/history/save`, {
         method: 'POST',

@@ -8,10 +8,11 @@ const router = express.Router();
 router.post('/save', protect, async (req, res) => {
     try {
         // Data field names match the 'credit_score' and 'persona' variables from frontend
-        const { credit_score, persona, suggested_interest } = req.body;
+        const { credit_score, persona, suggested_interest, displayName } = req.body;
         
         const record = new History({
             userId: req.user._id,
+            displayName: displayName || 'Untitled History',
             creditScore: credit_score,
             persona: persona,
             interestRate: suggested_interest

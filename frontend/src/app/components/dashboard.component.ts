@@ -214,13 +214,22 @@ import * as confetti from 'canvas-confetti';
           <div class="mt-6 flex items-center justify-between card-glass rounded-2xl px-6 py-4 animate__animated animate__fadeInUp">
             <div>
               <p class="text-sm font-bold text-white">Archive this Analysis</p>
-              <p class="text-xs text-gray-500 mt-0.5">Save the current result to your Statement Archive for {{ currentMonthYear() }}</p>
+              @if (!isEditingName) {
+                <p class="text-xs text-gray-500 mt-0.5">Save the current result to your Statement Archive for {{ currentMonthYear() }}</p>
+              } @else {
+                <input type="text"
+                       [value]="customDisplayName"
+                       (input)="updateDisplayName($event)"
+                       class="custom-name-input mt-1 w-64 px-1 py-1 text-sm text-cyan-300 outline-none"
+                       placeholder="Enter custom history name"
+                       autofocus>
+              }
             </div>
-            <button (click)="saveAnalysis()"
+            <button (click)="handleArchiveClick()"
                     [disabled]="isSaving"
                     class="px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-40"
                     style="background:linear-gradient(135deg,#059669,#4f46e5); box-shadow:0 0 12px rgba(16,185,129,0.3);">
-              {{ isSaving ? 'Archiving...' : '💾 Save to History' }}
+              {{ isSaving ? 'Archiving...' : (isEditingName ? '💾 Confirm Save' : '✎ Set Name & Save') }}
             </button>
           </div>
         }
@@ -368,6 +377,18 @@ import * as confetti from 'canvas-confetti';
         0 0 40px rgba(6,182,212,0.4),
         0 0 80px rgba(6,182,212,0.2);
     }
+    
+    /* ── Custom Name Input ── */
+    .custom-name-input {
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid rgba(6, 182, 212, 0.4);
+      transition: border-bottom-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .custom-name-input:focus {
+      border-bottom-color: rgba(6, 182, 212, 1);
+      box-shadow: 0 1px 0 rgba(6, 182, 212, 0.8);
+    }
 
     /* ── Pulse dot ── */
     .pulse-dot {
@@ -422,6 +443,8 @@ export class DashboardComponent implements AfterViewInit, OnDestroy {
   dragOver = false;
   isSaving = false;
   userMenuOpen = false;
+  isEditingName = false;
+  customDisplayName = 'Statement Archive';
   merchantIdMock = 'M_' + Math.random().toString(36).substring(2, 9).toUpperCase();
 
   // ── Tri-state view machine ──────────────────────────────────────────────
@@ -620,6 +643,21 @@ export class DashboardComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  updateDisplayName(event: Event) {
+    this.customDisplayName = (event.target as HTMLInputElement).value;
+  }
+
+  handleArchiveClick() {
+    if (!this.isEditingName) {
+      // Step 1: Open the input field
+      this.customDisplayName = 'Statement ' + this.currentMonthYear();
+      this.isEditingName = true;
+    } else {
+      // Step 2: Actually save
+      this.saveAnalysis();
+    }
+  }
+
   async saveAnalysis() {
     const result = this.resourceService.getLatestResult();
     if (!result) return;
@@ -629,10 +667,12 @@ export class DashboardComponent implements AfterViewInit, OnDestroy {
     const res = await this.historyService.saveRecord({
       credit_score: result.credit_score,
       persona: result.persona,
-      suggested_interest: result.suggested_interest
+      suggested_interest: result.suggested_interest,
+      displayName: this.customDisplayName
     });
     
     this.isSaving = false;
+    this.isEditingName = false; // Reset toggle state after successful save
     if (res) {
       // Fire confetti on successful archive
       confetti({ particleCount: 120, spread: 80, origin: { y: 0.5 }, colors: ['#10b981','#4f46e5','#22d3ee'] });
