@@ -26,11 +26,13 @@ if (MONGODB_URI && MONGODB_URI !== 'mock_bypass') {
 }
 
 import authRoutes from './routes/auth.routes.js';
+import historyRoutes from './routes/history.routes.js'; // Imported History Routes
 
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/v1', analyzeRoutes);
 app.use('/api/v1/reports', reportsRoutes);
+app.use('/api/v1/history', historyRoutes); // Mounted new endpoint
 
 // General route wrapper
 app.get('/', (req, res) => {

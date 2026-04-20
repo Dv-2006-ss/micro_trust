@@ -624,12 +624,14 @@ export class DashboardComponent implements AfterViewInit, OnDestroy {
     const result = this.resourceService.getLatestResult();
     if (!result) return;
     this.isSaving = true;
-    const res = await this.historyService.saveReport({
-      ...result,
-      merchantId: this.merchantIdMock,
-      primary_bank: this.authService.currentUser()?.primary_bank ?? 'HDFC',
-      filename: this.pdfService.currentFile()?.name ?? 'statement.pdf',
+    
+    // Calls the requested saveRecord method with the mapped field names:
+    const res = await this.historyService.saveRecord({
+      credit_score: result.credit_score,
+      persona: result.persona,
+      suggested_interest: result.suggested_interest
     });
+    
     this.isSaving = false;
     if (res) {
       // Fire confetti on successful archive

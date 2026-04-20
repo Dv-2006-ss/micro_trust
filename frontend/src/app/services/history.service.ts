@@ -139,4 +139,21 @@ export class HistoryService {
   reset(): void {
     this.stateSignal.set({ loaded: false, loading: false, years: [], selectedEntry: null, error: null });
   }
+
+  // ── Requested saveRecord method ──────────────────────────────────────────
+  async saveRecord(payload: { credit_score: number, persona: string, suggested_interest: string }): Promise<{ message: string } | null> {
+    try {
+      const response = await fetch(`${environment.apiUrl}/history/save`, {
+        method: 'POST',
+        headers: this.authHeaders,
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) throw new Error(`Save failed: ${response.status}`);
+      const res = await response.json();
+      return res;
+    } catch (err: any) {
+      console.error('[HistoryService] saveRecord error:', err);
+      return null;
+    }
+  }
 }
