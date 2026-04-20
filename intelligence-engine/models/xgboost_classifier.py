@@ -12,11 +12,15 @@ from sklearn.pipeline import Pipeline
 
 logger = logging.getLogger(__name__)
 
-# ── Absolute path resolution (works on Windows dev + Linux Render) ────────
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _MODEL_PATH = os.path.join(_THIS_DIR, '..', 'saved_models', 'xgboost_pipeline.pkl')
 _DATA_PATH = os.path.join(_THIS_DIR, '..', 'data', 'standardized_training_data.csv')
 
+# Global Loading to optimize Render worker startup
+_GLOBAL_PIPELINE = None
+if os.path.exists(_MODEL_PATH):
+    _GLOBAL_PIPELINE = joblib.load(_MODEL_PATH)
+    logger.info("✅ Loaded pre-trained XGBoost pipeline from disk globally.")
 
 class CreditApprovalXGBoost:
     """
@@ -25,12 +29,11 @@ class CreditApprovalXGBoost:
     """
     def __init__(self):
         model_path = os.path.abspath(_MODEL_PATH)
-        logger.info(f"[XGBoost] Looking for pre-trained model at: {model_path}")
+        logger.info(f"[XGBoost] Verifying pre-trained model at: {model_path}")
 
-        if os.path.exists(model_path):
-            self.pipeline = joblib.load(model_path)
+        if _GLOBAL_PIPELINE is not None:
+            self.pipeline = _GLOBAL_PIPELINE
             self._fitted = True
-            logger.info("✅ Loaded pre-trained XGBoost pipeline from disk.")
         else:
             logger.warning(
                 "\n"
@@ -122,9 +125,17 @@ class CreditApprovalXGBoost:
 
         df = pd.DataFrame([feature_data])
 
-        # Predicting probability
-        prob = self.pipeline.predict_proba(df)[0][1]
-        prediction = self.pipeline.predict(df)[0]
+        try:
+            # Predicting probability
+            prob = self.pipeline.predict_proba(df)[0][1]
+            prediction = self.pipeline.predict(df)[0]
+        except Exception as e:
+            logger.error(f"[XGBoost] Prediction failed: {e}")
+            return {
+                "approved": False,
+                "approval_probability": 0.5,
+                "suggested_risk_level": "Medium"
+            }
 
         # Map back to business logic
         return {

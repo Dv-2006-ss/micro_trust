@@ -57,12 +57,20 @@ class SecureOCRProcessor:
                 page = doc.load_page(0)
                 pix = page.get_pixmap()
                 image = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                if image.width > 1000:
+                    aspect_ratio = image.height / image.width
+                    new_height = int(1000 * aspect_ratio)
+                    image = image.resize((1000, new_height), Image.Resampling.LANCZOS)
                 extracted_text = pytesseract.image_to_string(image)
                 doc.close()
             else:
                 # Load into memory buffer for standard images
                 buffer = BytesIO(file_bytes)
                 image = Image.open(buffer)
+                if image.width > 1000:
+                    aspect_ratio = image.height / image.width
+                    new_height = int(1000 * aspect_ratio)
+                    image = image.resize((1000, new_height), Image.Resampling.LANCZOS)
                 extracted_text = pytesseract.image_to_string(image)
             
             # In a real model, NLP (e.g. Spacy or Regex) converts raw text to structured transactions.

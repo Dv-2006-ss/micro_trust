@@ -14,6 +14,11 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _MODEL_PATH = os.path.join(_THIS_DIR, '..', 'saved_models', 'kmeans_pipeline.pkl')
 _DATA_PATH = os.path.join(_THIS_DIR, '..', 'data', 'standardized_training_data.csv')
 
+# Global Loading to optimize Render worker startup
+_GLOBAL_PIPELINE = None
+if os.path.exists(_MODEL_PATH):
+    _GLOBAL_PIPELINE = joblib.load(_MODEL_PATH)
+    logger.info("✅ Loaded pre-trained KMeans pipeline from disk globally.")
 
 class MerchantPersonaKMeans:
     """
@@ -24,12 +29,11 @@ class MerchantPersonaKMeans:
     def __init__(self, n_clusters=3):
         self.n_clusters = n_clusters
         model_path = os.path.abspath(_MODEL_PATH)
-        logger.info(f"[KMeans] Looking for pre-trained model at: {model_path}")
+        logger.info(f"[KMeans] Verifying pre-trained model at: {model_path}")
 
-        if os.path.exists(model_path):
-            self.pipeline = joblib.load(model_path)
+        if _GLOBAL_PIPELINE is not None:
+            self.pipeline = _GLOBAL_PIPELINE
             self._fitted = True
-            logger.info("✅ Loaded pre-trained KMeans pipeline from disk.")
         else:
             logger.warning(
                 "\n"

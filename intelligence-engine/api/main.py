@@ -265,6 +265,9 @@ async def analyze_data(
         except Exception as e:
             logger.error(f"SHAP calculation failed: {e}")
             shap_values = []
+        finally:
+            import gc
+            gc.collect()  # Flush SHAP memory
 
         # 7. Smart Card Recommendations — bank-aware
         cards = recommend_cards(credit_score, cluster_info["persona"], primary_bank or '')
