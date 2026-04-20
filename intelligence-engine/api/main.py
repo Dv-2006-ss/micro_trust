@@ -231,7 +231,18 @@ async def analyze_data(
             raise ValueError("OCR Processor returned empty structured data.")
         
         # 2. Unsupervised Clustering (Persona creation)
-        cluster_info = kmeans_cluster.predict_persona(structured_data)
+        raw_text = str(structured_data.get("raw_text", "")).upper()
+        
+        # Mapping function: keywords to assign numeric values
+        m_cat = 1 if 'BANK' in raw_text else 2 if 'UPI' in raw_text else 3 if 'MERCHANT' in raw_text else 0
+        s_type = 1 if 'RETAIL' in raw_text else 2 if 'WHOLESALE' in raw_text else 0
+        
+        # Ensure only the two expected numeric features are passed so prediction doesn't fail
+        kmeans_features = {
+            "merchant_category": m_cat,
+            "shop_type": s_type
+        }
+        cluster_info = kmeans_cluster.predict_persona(kmeans_features)
         
         # 3. Supervised Classification (Risk Level and Approval prediction)
         risk_prediction = xgb_classifier.predict(structured_data)

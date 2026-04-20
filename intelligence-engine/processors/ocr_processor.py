@@ -82,6 +82,7 @@ class SecureOCRProcessor:
             merchant_category = "Food Delivery" if file_len % 5 == 0 else ("Electronics" if file_len % 3 == 0 else "Grocery")
             
             structured_json = {
+                "raw_text": extracted_text,
                 "raw_text_length": extracted_text_len,
                 "transactions": [
                     {"date": "2023-01-01", "amount": 120.50, "description": "Supplier A", "type": "debit"},
