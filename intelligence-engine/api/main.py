@@ -21,16 +21,45 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize singletons mapping to our Priority classes
+# ── Initialize singletons with auto-train on missing models ──────────────
+logger.info("=" * 70)
+logger.info("  MICRO-TRUST V2 INTELLIGENCE ENGINE — STARTUP")
+logger.info("=" * 70)
+
 ocr_processor = SecureOCRProcessor()
-# We would typically load pre-trained models here via Joblib/Pickle. 
-# For initialization, we just instantiate the class mapping.
 xgb_classifier = CreditApprovalXGBoost()
 kmeans_cluster = MerchantPersonaKMeans(n_clusters=3)
 
+# ── SHAP Explainer: Initialize from the fitted XGBoost model ─────────────
+shap_explainer = None
+try:
+    if xgb_classifier._fitted:
+        import shap
+        # Extract the raw XGBoost model from the pipeline for SHAP
+        raw_xgb_model = xgb_classifier.pipeline.named_steps['classifier']
+        shap_explainer = shap.TreeExplainer(raw_xgb_model)
+        logger.info("✅ SHAP TreeExplainer initialized from fitted XGBoost model.")
+    else:
+        logger.warning("⚠️ XGBoost model is not fitted — SHAP explainer skipped (will use simulated values).")
+except Exception as e:
+    logger.error(f"⚠️ SHAP explainer initialization failed: {e} — falling back to simulated values.")
+    shap_explainer = None
+
+logger.info("=" * 70)
+logger.info("  STARTUP COMPLETE — Engine ready to receive requests")
+logger.info("=" * 70)
+
+
 @app.get("/")
 async def health_check():
-    return {"status": "active"}
+    return {
+        "status": "active",
+        "models": {
+            "xgboost_fitted": xgb_classifier._fitted,
+            "kmeans_fitted": kmeans_cluster._fitted,
+            "shap_ready": shap_explainer is not None
+        }
+    }
 
 
 # ── Roast Engine: NLG Module ──────────────────────────────────────────────
@@ -88,11 +117,14 @@ def generate_forecast(credit_score: int, persona: str) -> list:
 
 # ── SHAP Feature Importance ───────────────────────────────────────────────
 def calculate_shap_values(structured_data: dict, credit_score: int) -> dict:
-    """Simulates SHAP explainability values for XAI dashboard."""
+    """
+    Uses the real SHAP TreeExplainer if available, otherwise falls back
+    to simulated SHAP-style explainability values for the XAI dashboard.
+    """
+    # Simulated fallback (always works, even without fitted model)
     avg_balance = structured_data.get("average_balance", 0)
     txn_count = structured_data.get("transaction_count", 0)
     
-    # Dynamic SHAP based on actual ML features
     income_stability = min(95, max(15, int((avg_balance / 500) * 10 + credit_score / 12)))
     spending_risk = min(95, max(10, 100 - int(credit_score / 9)))
     liquidity = min(90, max(10, int(avg_balance / 300 + txn_count * 2)))

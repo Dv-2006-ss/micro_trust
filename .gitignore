@@ -38,12 +38,15 @@ frontend/.angular/cache/
 backend/uploads/
 *.pdf
 
-# ─── ML Models & large data (use Git LFS or cloud storage instead) ─────────
-intelligence-engine/saved_models/*.pkl
+# ─── ML Models & large data ────────────────────────────────────────────────
+# .pkl and .csv are TRACKED so they deploy to Render's Docker build context.
+# Without them the Intelligence Engine starts unfitted → NotFittedError on /analyze.
+# Large formats (.h5, .pt, etc.) should still use Git LFS or cloud storage.
+# intelligence-engine/saved_models/*.pkl   ← TRACKED (small, ~350KB)
 intelligence-engine/saved_models/*.joblib
 intelligence-engine/saved_models/*.h5
 intelligence-engine/saved_models/*.pt
-intelligence-engine/data/*.csv
+# intelligence-engine/data/*.csv           ← TRACKED (fallback auto-train data)
 intelligence-engine/data/*.json
 intelligence-engine/notebooks/*.ipynb
 
