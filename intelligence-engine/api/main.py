@@ -237,8 +237,11 @@ async def analyze_data(
         m_cat = 1 if 'BANK' in raw_text else 2 if 'UPI' in raw_text else 3 if 'MERCHANT' in raw_text else 0
         s_type = 1 if 'RETAIL' in raw_text else 2 if 'WHOLESALE' in raw_text else 0
         
-        # Ensure only the two expected numeric features are passed so prediction doesn't fail
+        # Ensure all numeric features expected by K-Means are included
         kmeans_features = {
+            "average_balance": structured_data.get("average_balance", 0.0),
+            "daily_transaction_spikes": structured_data.get("daily_transaction_spikes", 0.0),
+            "monthly_revenue": structured_data.get("monthly_revenue", 0.0),
             "merchant_category": m_cat,
             "shop_type": s_type
         }

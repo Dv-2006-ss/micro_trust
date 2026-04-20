@@ -411,16 +411,23 @@ export class BankTableComponent {
 
   ngDoCheck() {
     const score = this.result?.credit_score;
+    
+    // We must wait for the DOM to render the @if blocks before executing animations
     if (score && score !== this.lastScore) {
-      this.lastScore = score;
-      this.confettiFired = false; // reset flag for new result
-      this.showSuccessToast = false;
+      const scoreDOM = this.scoreDisplayRef?.nativeElement;
+      const roastDOM = this.roastSphereCanvasRef?.nativeElement;
       
-      if (this.scoreDisplayRef?.nativeElement) {
+      // Only lock the lastScore once the physical DOM target nodes exist
+      if (scoreDOM && roastDOM) {
+        this.lastScore = score;
+        this.confettiFired = false; 
+        this.showSuccessToast = false;
+        
         this.animateScore(score);
-      }
-      if (this.roastSphereCanvasRef?.nativeElement && !this.renderer) {
-        this.initThreeJsSphere();
+        
+        if (!this.renderer) {
+          this.initThreeJsSphere();
+        }
       }
     }
   }
