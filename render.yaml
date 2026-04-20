@@ -16,7 +16,7 @@ services:
         fromService:
           name: microtrust-intelligence
           type: web
-          property: host
+          property: hostWithScheme
       - key: MONGODB_URI
         sync: false      # Set manually in Render dashboard
       - key: JWT_SECRET
