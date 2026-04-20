@@ -10,23 +10,8 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Production-aware CORS whitelist
-const allowedOrigins = [
-    'https://microtrust-frontend.onrender.com',
-    'http://localhost:4200'
-];
-app.use(cors({
-    origin: (origin, callback) => {
-        // Allow requests with no origin (mobile apps, curl, etc.)
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            console.warn(`[CORS] Blocked request from origin: ${origin}`);
-            callback(null, true); // Allow in dev, tighten later if needed
-        }
-    },
-    credentials: true
-}));
+// Allow all origins — Render service names can vary (micro-trust-2, etc.)
+app.use(cors());
 app.use(express.json());
 
 // --- MongoDB Bypass / Mock Mode ---
