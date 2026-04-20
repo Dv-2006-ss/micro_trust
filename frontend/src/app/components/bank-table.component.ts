@@ -153,7 +153,7 @@ const confetti = (_confetti as any).default || _confetti;
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                         </svg>
                       </div>
-                      <p class="text-indigo-300 text-sm font-bold">No distinctive features found</p>
+                      <p class="text-indigo-300 text-sm font-bold">Gathering Financial Insights</p>
                     </div>
                   }
                 </div>
