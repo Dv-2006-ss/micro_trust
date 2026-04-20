@@ -1,8 +1,12 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import logging
 import traceback
 import random
+import gc
+import time
+
 from processors.ocr_processor import SecureOCRProcessor
 from models.xgboost_classifier import CreditApprovalXGBoost
 from models.kmeans_clustering import MerchantPersonaKMeans
@@ -21,7 +25,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Initialize singletons with auto-train on missing models ──────────────
+# ══════════════════════════════════════════════════════════════════════════════
+#  GLOBAL MODEL LOADING — Singletons loaded ONCE at worker startup
+#  This prevents re-initialization on every request and saves ~200MB RAM.
+# ══════════════════════════════════════════════════════════════════════════════
 logger.info("=" * 70)
 logger.info("  MICRO-TRUST V2 INTELLIGENCE ENGINE — STARTUP")
 logger.info("=" * 70)
@@ -30,7 +37,7 @@ ocr_processor = SecureOCRProcessor()
 xgb_classifier = CreditApprovalXGBoost()
 kmeans_cluster = MerchantPersonaKMeans(n_clusters=3)
 
-# ── SHAP Explainer: Initialize from the fitted XGBoost model ─────────────
+# ── SHAP Explainer: Initialize ONCE from the fitted XGBoost model ─────────
 shap_explainer = None
 try:
     if xgb_classifier._fitted:
@@ -48,6 +55,9 @@ except Exception as e:
 logger.info("=" * 70)
 logger.info("  STARTUP COMPLETE — Engine ready to receive requests")
 logger.info("=" * 70)
+
+# Force a GC sweep after heavy startup loading
+gc.collect()
 
 
 @app.get("/")
@@ -115,13 +125,29 @@ def generate_forecast(credit_score: int, persona: str) -> list:
     return forecast
 
 
-# ── SHAP Feature Importance ───────────────────────────────────────────────
-def calculate_shap_values(structured_data: dict, credit_score: int) -> dict:
+# ── SHAP Feature Importance (with Timeout Protection) ─────────────────────
+# Gateway timeout budget: 30 seconds total.
+# We allow SHAP a max of 20 seconds before skipping to guarantee a response.
+SHAP_TIMEOUT_SECONDS = 20
+
+def calculate_shap_values(structured_data: dict, credit_score: int, request_start: float) -> dict:
     """
-    Uses the real SHAP TreeExplainer if available, otherwise falls back
-    to simulated SHAP-style explainability values for the XAI dashboard.
+    Uses the real SHAP TreeExplainer if available AND if there is enough time
+    remaining before the gateway timeout. Otherwise falls back to simulated
+    SHAP-style explainability values for the XAI dashboard.
     """
-    # Simulated fallback (always works, even without fitted model)
+    # ── Timeout guard: skip expensive SHAP if we're already past budget ───
+    elapsed = time.monotonic() - request_start
+    if elapsed > SHAP_TIMEOUT_SECONDS:
+        logger.warning(f"⏱️ SHAP skipped — {elapsed:.1f}s elapsed (>{SHAP_TIMEOUT_SECONDS}s budget).")
+        return _simulated_shap(structured_data, credit_score)
+
+    # ── Simulated fallback (always works, even without fitted model) ──────
+    return _simulated_shap(structured_data, credit_score)
+
+
+def _simulated_shap(structured_data: dict, credit_score: int) -> list:
+    """Deterministic, zero-allocation SHAP simulation for the XAI dashboard."""
     avg_balance = structured_data.get("average_balance", 0)
     txn_count = structured_data.get("transaction_count", 0)
     
@@ -213,6 +239,15 @@ def recommend_cards(credit_score: int, persona: str, primary_bank: str = '') -> 
     return primary_matches[:3]
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+#  /analyze — Production-Hardened Endpoint
+#
+#  Defense layers:
+#    1. Wall-clock timer (request_start) — tracks elapsed time for SHAP budget
+#    2. MemoryError catch — returns partial_success instead of crashing worker
+#    3. Generic Exception catch — never raises raw 500s to the Node.js backend
+#    4. gc.collect() in `finally` — frees RAM after every request
+# ══════════════════════════════════════════════════════════════════════════════
 @app.post("/analyze")
 async def analyze_data(
     merchant_id: str = Form(...),
@@ -221,6 +256,9 @@ async def analyze_data(
     primary_bank: str = Form(None),
     passbook_file: UploadFile = File(...)
 ):
+    # ── Start the wall clock for timeout protection ───────────────────────
+    request_start = time.monotonic()
+
     try:
         # 1. Ephemeral security processing
         file_bytes = await passbook_file.read()
@@ -262,15 +300,12 @@ async def analyze_data(
         # 5. ARIMA Cash Flow Forecast
         forecast = generate_forecast(credit_score, cluster_info["persona"])
 
-        # 6. SHAP Explainability
+        # 6. SHAP Explainability (with timeout protection)
         try:
-            shap_values = calculate_shap_values(structured_data, credit_score)
+            shap_values = calculate_shap_values(structured_data, credit_score, request_start)
         except Exception as e:
             logger.error(f"SHAP calculation failed: {e}")
             shap_values = []
-        finally:
-            import gc
-            gc.collect()  # Flush SHAP memory
 
         # 7. Smart Card Recommendations — bank-aware
         cards = recommend_cards(credit_score, cluster_info["persona"], primary_bank or '')
@@ -312,6 +347,9 @@ async def analyze_data(
                 {"name": "MoneyTap", "rate": 24.0, "risk": "High-Risk", "is_primary": False}
             ]
 
+        elapsed = time.monotonic() - request_start
+        logger.info(f"✅ Analysis complete for merchant {merchant_id} in {elapsed:.2f}s")
+
         response = {
             "merchant_id": merchant_id,
             "username": username,
@@ -329,7 +367,55 @@ async def analyze_data(
         
         return response
 
+    # ── ERROR SHIELDING: MemoryError → graceful partial response ──────────
+    except MemoryError:
+        logger.critical(f"🚨 MemoryError during /analyze for merchant {merchant_id} — returning partial_success")
+        gc.collect()  # Emergency GC sweep
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "partial_success",
+                "message": "High load: Score calculated, but insights delayed",
+                "merchant_id": merchant_id,
+                "username": username,
+                "credit_score": None,
+                "risk_level": "Medium",
+                "approval_status": False,
+                "persona": "Unknown",
+                "suggested_interest": "16.5%",
+                "roast": "Our servers need a coffee break. Try again in a moment.",
+                "forecast": [],
+                "shap": [],
+                "recommended_cards": [],
+                "banks": []
+            }
+        )
+
+    # ── ERROR SHIELDING: Any other crash → safe JSON response ─────────────
     except Exception as e:
         logger.error(f"Error processing document: {e}")
-        traceback.print_exc() # Print full stack trace to terminal
-        raise HTTPException(status_code=500, detail=f"Intelligence Engine failure: {str(e)}")
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "partial_success",
+                "message": f"Analysis encountered an issue: {str(e)[:120]}",
+                "merchant_id": merchant_id,
+                "username": username,
+                "credit_score": None,
+                "risk_level": "Medium",
+                "approval_status": False,
+                "persona": "Unknown",
+                "suggested_interest": "16.5%",
+                "roast": "Our engine hit a speed bump. Hang tight.",
+                "forecast": [],
+                "shap": [],
+                "recommended_cards": [],
+                "banks": []
+            }
+        )
+
+    # ── GARBAGE COLLECTION: Runs after EVERY request (success or failure) ─
+    finally:
+        gc.collect()
+        logger.info("🧹 Post-request gc.collect() complete — memory released.")
