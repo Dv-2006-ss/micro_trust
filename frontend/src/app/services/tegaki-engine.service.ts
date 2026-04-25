@@ -65,8 +65,8 @@ export class TegakiEngineService {
     await new Promise(resolve => setTimeout(resolve, 300));
     
     // Simulated Tegaki output: Generating an SVG with the text mapped to a cursive font and animated stroke
-    const svgStr = \`
-      <svg viewBox="0 0 \${width} 100" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: auto;">
+    const svgStr = `
+      <svg viewBox="0 0 ${width} 100" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: auto;">
         <text x="10" y="60" 
               font-family="'Caveat', 'Dancing Script', cursive" 
               font-size="34" 
@@ -76,9 +76,9 @@ export class TegakiEngineService {
               stroke-width="1.5" 
               stroke-linecap="round" 
               stroke-linejoin="round" 
-              class="tegaki-path">\${text}</text>
+              class="tegaki-path">${text}</text>
       </svg>
-    \`;
+    `;
 
     container.innerHTML = svgStr;
 
