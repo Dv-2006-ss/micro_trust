@@ -181,18 +181,6 @@ const confetti = (_confetti as any).default || _confetti;
           <div class="clear-both"></div>
         </div>
 
-        <!-- ── ROW 2.5: Manager's Note ── -->
-        @if (result?.note_svg) {
-          <div class="glass-card glass-morphic animate__animated animate__fadeInUp rounded-3xl p-6 relative overflow-hidden" style="animation-duration: 0.8s; animation-delay: 0.15s; animation-fill-mode: both; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 140px;">
-            <div class="absolute top-0 right-0 w-32 h-32 rounded-full pointer-events-none" style="background:radial-gradient(circle,rgba(0,229,255,0.05) 0%,transparent 70%);"></div>
-            <div class="flex items-center gap-2 mb-4 w-full">
-              <p class="text-xs font-bold uppercase tracking-widest text-cyan-400">Manager's Note</p>
-              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider" style="background:rgba(0,229,255,0.1); border:1px solid rgba(0,229,255,0.2); color:#00e5ff;">Handwritten</span>
-            </div>
-            <!-- The handwriting SVG will be injected here -->
-            <div class="w-full flex justify-center" [innerHTML]="result?.note_svg | safeHtml"></div>
-          </div>
-        }
 
         <!-- ── ROW 3: ARIMA Forecast + Smart Cards ── -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">

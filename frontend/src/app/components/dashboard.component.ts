@@ -12,7 +12,6 @@ import { AuthService } from '../services/auth.service';
 import { PdfSecurityService } from '../services/pdf-security.service';
 import { HistoryService } from '../services/history.service';
 import { TegakiEngineService } from '../services/tegaki-engine.service';
-import { AntigravityNoteComponent } from './antigravity-note.component';
 import gsap from 'gsap';
 import * as THREE from 'three';
 import * as _confetti from 'canvas-confetti';
@@ -21,7 +20,7 @@ const confetti = (_confetti as any).default || _confetti;
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, BankTableComponent, PdfFileCardComponent, PdfPasswordModalComponent, AntigravityNoteComponent],
+  imports: [CommonModule, BankTableComponent, PdfFileCardComponent, PdfPasswordModalComponent],
   template: `
     <!-- Film grain overlay -->
     <div class="film-grain-overlay" aria-hidden="true"></div>
@@ -210,7 +209,6 @@ const confetti = (_confetti as any).default || _confetti;
         <!-- Intelligence Results — only shown after analysis starts -->
         @if (viewState !== 'AWAITING') {
         <app-bank-table></app-bank-table>
-        <app-antigravity-note></app-antigravity-note>
         }
 
         <!-- Save Analysis Button -->
