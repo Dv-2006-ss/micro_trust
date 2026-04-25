@@ -8,11 +8,16 @@ import { TegakiEngineService } from '../services/tegaki-engine.service';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="parchment-bg rounded-xl p-8 relative min-h-[220px] transition-all duration-500 max-w-2xl mx-auto mt-6"
+    <div class="parchment-bg rounded-xl p-8 relative min-h-[220px] transition-all duration-500 max-w-2xl mx-auto mt-6 overflow-hidden"
          [class.opacity-50]="tegaki.isWriting()">
       
+      <!-- Watermark -->
+      <div class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03] select-none" style="z-index: 0;">
+        <span class="text-7xl font-black uppercase tracking-[0.5em] rotate-12 text-gray-900">Micro-Trust AI</span>
+      </div>
+
       <!-- Premium Stamp/Header -->
-      <div class="flex items-center justify-between mb-6 border-b border-red-500/20 pb-4">
+      <div class="relative flex items-center justify-between mb-6 border-b border-red-500/20 pb-4" style="z-index: 10;">
         <div class="flex items-center gap-3">
           <div class="w-8 h-8 rounded-full border border-red-400 flex items-center justify-center">
             <svg class="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -28,7 +33,7 @@ import { TegakiEngineService } from '../services/tegaki-engine.service';
       </div>
 
       <!-- Handwriting Target Container -->
-      <div class="w-full flex justify-center items-center min-h-[100px]" #handwritingContainer>
+      <div class="relative w-full flex justify-center items-center min-h-[100px]" #handwritingContainer style="z-index: 10;">
         @if (!hasRendered && !errorState) {
           <p class="text-gray-400 text-sm italic animate-pulse">Awaiting final verdict...</p>
         }
