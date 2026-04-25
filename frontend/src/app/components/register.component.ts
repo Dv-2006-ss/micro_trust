@@ -4,6 +4,7 @@ import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { PretextService } from '../services/pretext.service';
 import { environment } from '../../environments/environment';
+import { TegakiEngineService } from '../services/tegaki-engine.service';
 import * as THREE from 'three';
 
 const BANKS = ['HDFC', 'SBI', 'ICICI', 'Axis', 'Kotak', 'PNB'];
@@ -220,6 +221,7 @@ export class RegisterComponent implements OnDestroy {
   private router = inject(Router);
   private ngZone = inject(NgZone);
   private pretext = inject(PretextService);
+  public tegakiService = inject(TegakiEngineService);
 
   @ViewChild('bgCanvas') bgCanvasRef!: ElementRef<HTMLCanvasElement>;
 
@@ -287,9 +289,25 @@ export class RegisterComponent implements OnDestroy {
 
     const loop = () => {
       this.animFrame = requestAnimationFrame(loop);
-      const t = (performance.now() - this.startTime) / 1000;
-      sphere.rotation.y = t * 0.04;
-      sphere.rotation.x = t * 0.025;
+      
+      // Determine if Tegaki engine is writing
+      const isWriting = this.tegakiService.isWriting();
+      
+      // Calculate delta time
+      const now = performance.now();
+      const dt = (now - this.startTime) / 1000;
+      this.startTime = now;
+
+      // Slow down rotation if writing
+      const speedMult = isWriting ? 0.1 : 1.0;
+      sphere.rotation.y += (1.5 * speedMult) * dt;
+      sphere.rotation.x += (0.8 * speedMult) * dt;
+      
+      // Dim opacity
+      const targetOpacity = isWriting ? 0.1 : 0.4;
+      const currentOpacity = parseFloat(canvas.style.opacity || '0.4');
+      canvas.style.opacity = (currentOpacity + (targetOpacity - currentOpacity) * 0.05).toString();
+
       this.renderer?.render(scene, camera);
     };
     loop();

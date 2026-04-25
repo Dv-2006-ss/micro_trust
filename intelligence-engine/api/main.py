@@ -10,6 +10,7 @@ import time
 from processors.ocr_processor import SecureOCRProcessor
 from models.xgboost_classifier import CreditApprovalXGBoost
 from models.kmeans_clustering import MerchantPersonaKMeans
+from models.synthesis_engine import synthesis_engine
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -297,6 +298,19 @@ async def analyze_data(
         # 4. NLG Roast Engine
         roast = generate_roast(risk_prediction["suggested_risk_level"], credit_score, structured_data)
 
+        # 4.5 Antigravity (Tegaki) Handwriting Synthesis
+        persona = cluster_info["persona"]
+        risk = risk_prediction["suggested_risk_level"]
+        
+        if risk == "Low":
+            note_text = f"Excellent patterns for {persona}, approved!"
+        elif risk == "High":
+            note_text = f"Proceed with caution. {persona} flagged."
+        else:
+            note_text = f"Stable patterns, conditionally approved."
+            
+        note_svg = synthesis_engine.synthesize(note_text)
+
         # 5. ARIMA Cash Flow Forecast
         forecast = generate_forecast(credit_score, cluster_info["persona"])
 
@@ -359,6 +373,7 @@ async def analyze_data(
             "persona": cluster_info["persona"],
             "suggested_interest": suggested_interest,
             "roast": roast,
+            "note_svg": note_svg,
             "forecast": forecast,
             "shap": shap_values,
             "recommended_cards": cards,
@@ -384,6 +399,7 @@ async def analyze_data(
                 "persona": "Unknown",
                 "suggested_interest": "16.5%",
                 "roast": "Our servers need a coffee break. Try again in a moment.",
+                "note_svg": "",
                 "forecast": [],
                 "shap": [],
                 "recommended_cards": [],
@@ -408,6 +424,7 @@ async def analyze_data(
                 "persona": "Unknown",
                 "suggested_interest": "16.5%",
                 "roast": "Our engine hit a speed bump. Hang tight.",
+                "note_svg": "",
                 "forecast": [],
                 "shap": [],
                 "recommended_cards": [],

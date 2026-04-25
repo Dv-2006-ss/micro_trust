@@ -11,6 +11,8 @@ import { ResourceApiService } from '../services/resource.service';
 import { AuthService } from '../services/auth.service';
 import { PdfSecurityService } from '../services/pdf-security.service';
 import { HistoryService } from '../services/history.service';
+import { TegakiEngineService } from '../services/tegaki-engine.service';
+import { AntigravityNoteComponent } from './antigravity-note.component';
 import gsap from 'gsap';
 import * as THREE from 'three';
 import * as _confetti from 'canvas-confetti';
@@ -19,7 +21,7 @@ const confetti = (_confetti as any).default || _confetti;
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, BankTableComponent, PdfFileCardComponent, PdfPasswordModalComponent],
+  imports: [CommonModule, BankTableComponent, PdfFileCardComponent, PdfPasswordModalComponent, AntigravityNoteComponent],
   template: `
     <!-- Film grain overlay -->
     <div class="film-grain-overlay" aria-hidden="true"></div>
@@ -208,6 +210,7 @@ const confetti = (_confetti as any).default || _confetti;
         <!-- Intelligence Results — only shown after analysis starts -->
         @if (viewState !== 'AWAITING') {
         <app-bank-table></app-bank-table>
+        <app-antigravity-note></app-antigravity-note>
         }
 
         <!-- Save Analysis Button -->
@@ -437,6 +440,7 @@ export class DashboardComponent implements AfterViewInit, OnDestroy {
   private router           = inject(Router);
   authService = inject(AuthService);
   pdfService  = inject(PdfSecurityService);
+  public tegakiService = inject(TegakiEngineService);
   private zone = inject(NgZone);
 
   showPasswordModal = signal(false);
@@ -564,7 +568,7 @@ export class DashboardComponent implements AfterViewInit, OnDestroy {
 
     // GSAP infinite scroll: shift UV/position to simulate movement toward camera
     const scrollState = { z: 0 };
-    gsap.to(scrollState, {
+    const scrollTween = gsap.to(scrollState, {
       z: 1,
       duration: 2,
       ease: 'none',
@@ -585,6 +589,16 @@ export class DashboardComponent implements AfterViewInit, OnDestroy {
 
     const loop = () => {
       this.animFrame = requestAnimationFrame(loop);
+      
+      const isWriting = this.tegakiService.isWriting();
+      
+      // Update gsap timeScale based on handwriting state
+      scrollTween.timeScale(isWriting ? 0.1 : 1.0);
+      
+      // Dim background opacity dynamically
+      const targetOpacity = isWriting ? 0.02 : 0.12;
+      mat.opacity += (targetOpacity - mat.opacity) * 0.05;
+
       this.renderer!.render(scene, camera);
     };
     loop();

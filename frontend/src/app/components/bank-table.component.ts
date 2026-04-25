@@ -7,12 +7,13 @@ import { PretextService } from '../services/pretext.service';
 import gsap from 'gsap';
 import * as THREE from 'three';
 import * as _confetti from 'canvas-confetti';
+import { SafeHtmlPipe } from '../pipes/safe-html.pipe';
 const confetti = (_confetti as any).default || _confetti;
 
 @Component({
   selector: 'app-bank-table',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, SafeHtmlPipe],
   template: `
     <div class="space-y-6">
 
@@ -179,6 +180,19 @@ const confetti = (_confetti as any).default || _confetti;
           </div>
           <div class="clear-both"></div>
         </div>
+
+        <!-- ── ROW 2.5: Manager's Note ── -->
+        @if (result?.note_svg) {
+          <div class="glass-card glass-morphic animate__animated animate__fadeInUp rounded-3xl p-6 relative overflow-hidden" style="animation-duration: 0.8s; animation-delay: 0.15s; animation-fill-mode: both; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 140px;">
+            <div class="absolute top-0 right-0 w-32 h-32 rounded-full pointer-events-none" style="background:radial-gradient(circle,rgba(0,229,255,0.05) 0%,transparent 70%);"></div>
+            <div class="flex items-center gap-2 mb-4 w-full">
+              <p class="text-xs font-bold uppercase tracking-widest text-cyan-400">Manager's Note</p>
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider" style="background:rgba(0,229,255,0.1); border:1px solid rgba(0,229,255,0.2); color:#00e5ff;">Handwritten</span>
+            </div>
+            <!-- The handwriting SVG will be injected here -->
+            <div class="w-full flex justify-center" [innerHTML]="result?.note_svg | safeHtml"></div>
+          </div>
+        }
 
         <!-- ── ROW 3: ARIMA Forecast + Smart Cards ── -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -382,6 +396,22 @@ const confetti = (_confetti as any).default || _confetti;
       box-shadow:
         0 8px 32px rgba(0, 0, 0, 0.5),
         inset 0 1px 0 rgba(255,255,255,0.04) !important;
+    }
+    
+    /* ── Handwriting Animation ── */
+    ::ng-deep .write-effect-path {
+      stroke: #00e5ff;
+      filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.6));
+      stroke-dasharray: 1000;
+      stroke-dashoffset: 1000;
+      animation: write-effect 4s ease-out forwards;
+      animation-delay: 0.5s;
+    }
+    
+    @keyframes write-effect {
+      to {
+        stroke-dashoffset: 0;
+      }
     }
   `]
 })
