@@ -175,7 +175,7 @@ export class ResourceApiService {
       { id: 5, label: 'RNN identifying liquidity patterns...', icon: '🔬', status: 'pending' },
       { id: 6, label: 'Computing SHAP feature importance...', icon: '📈', status: 'pending' },
       { id: 7, label: 'ARIMA forecasting future cash flow...', icon: '📉', status: 'pending' },
-      { id: 8, label: 'AI Manager is writing your roast...', icon: '✍️', status: 'pending' },
+      { id: 8, label: 'Surprise', icon: '✍️', status: 'pending' },
     ];
 
     this.pipelineStages.set(stages);

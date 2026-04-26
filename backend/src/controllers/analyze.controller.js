@@ -2,11 +2,14 @@ import fs from 'node:fs';
 import { Merchant } from '../models/Merchant.js';
 
 // ── Pre-warm utility: Wake up the Python service before sending heavy payloads ──
+// NOTE: Render free-tier aggressively rate-limits with 429. A 429 means
+// the process IS alive (Render's proxy is responding), so we treat it as
+// a successful warm-up signal rather than a failure.
 async function warmUpPythonService(baseUrl) {
     console.log('[Node.js] 🔥 Pre-warming Python Intelligence Engine...');
     const healthUrl = `${baseUrl}/`;
-    const MAX_WARM_RETRIES = 5;
-    const WARM_RETRY_DELAY = 8000; // 8 seconds between warm-up pings
+    const MAX_WARM_RETRIES = 3;        // Reduced: fewer pings = less rate-limiting
+    const WARM_RETRY_DELAY = 10000;    // 10s between pings to respect Render's limits
 
     for (let attempt = 1; attempt <= MAX_WARM_RETRIES; attempt++) {
         try {
@@ -14,11 +17,19 @@ async function warmUpPythonService(baseUrl) {
                 method: 'GET',
                 signal: AbortSignal.timeout(30000) // 30s per ping attempt
             });
+
             if (resp.ok) {
                 const body = await resp.json();
                 console.log(`[Node.js] ✅ Python Engine is WARM (attempt ${attempt}/${MAX_WARM_RETRIES}):`, body);
                 return true;
             }
+
+            // 429 = Render rate limiter responded → the process IS alive
+            if (resp.status === 429) {
+                console.log(`[Node.js] ✅ Python Engine is ALIVE (429 = Render rate limit, process running). Proceeding.`);
+                return true;
+            }
+
             console.warn(`[Node.js] ⚠️ Warm-up got status ${resp.status} (attempt ${attempt}/${MAX_WARM_RETRIES})`);
         } catch (err) {
             console.warn(`[Node.js] ⏳ Warm-up attempt ${attempt}/${MAX_WARM_RETRIES} failed: ${err.message}`);
@@ -30,8 +41,8 @@ async function warmUpPythonService(baseUrl) {
         }
     }
 
-    console.error('[Node.js] ❌ Python Engine failed to warm up after all attempts.');
-    return false;
+    console.warn('[Node.js] ⚠️ Python Engine warm-up inconclusive — proceeding with analysis anyway.');
+    return true; // Don't block the pipeline: /analyze has its own retry logic
 }
 
 export const analyzePassbook = async (req, res, next) => {
@@ -66,15 +77,9 @@ export const analyzePassbook = async (req, res, next) => {
         }
 
         // ── STEP 1: Pre-warm the Python service (critical for Render free tier) ──
-        const isWarm = await warmUpPythonService(baseUrl);
-        if (!isWarm) {
-            console.error('[Node.js] Python service is unreachable after warm-up attempts.');
-            return res.status(503).json({
-                success: false,
-                message: 'AI Engine Handshake Failed',
-                error: 'The Python Intelligence Engine is currently waking up. Please retry in 30 seconds.'
-            });
-        }
+        // This is best-effort: even if warm-up is inconclusive, the /analyze
+        // call below has its own retry loop for transient 502/503/504 errors.
+        await warmUpPythonService(baseUrl);
 
         // ── STEP 2: Build the multipart form for the Python Intelligence Engine ─
         const form = new FormData();
