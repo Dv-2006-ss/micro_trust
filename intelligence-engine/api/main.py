@@ -396,6 +396,7 @@ async def analyze_data(
             "persona": cluster_info["persona"],
             "suggested_interest": suggested_interest,
             "roast": roast,
+            "ai_roast": roast,
             "note_svg": note_svg,
             "forecast": forecast,
             "shap": shap_values,

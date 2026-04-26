@@ -26,6 +26,7 @@ export interface AnalysisResponse {
   persona: string;
   suggested_interest: string;
   roast: string;
+  ai_roast: string;
   forecast: ForecastPoint[];
   shap: ShapFeature[];
   recommended_cards: CardRecommendation[];

@@ -19,8 +19,8 @@ _DATA_PATH = os.path.join(_THIS_DIR, '..', 'data', 'standardized_training_data.c
 # Global Loading to optimize Render worker startup
 _GLOBAL_PIPELINE = None
 if os.path.exists(_MODEL_PATH):
-    _GLOBAL_PIPELINE = joblib.load(_MODEL_PATH)
-    logger.info("✅ Loaded pre-trained XGBoost pipeline from disk globally.")
+    _GLOBAL_PIPELINE = joblib.load(_MODEL_PATH, mmap_mode='r')
+    logger.info("✅ Loaded pre-trained XGBoost pipeline from disk globally (mmap_mode='r').")
 
 class CreditApprovalXGBoost:
     """

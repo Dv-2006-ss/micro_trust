@@ -4,6 +4,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { ResourceApiService } from '../services/resource.service';
 import { PretextService } from '../services/pretext.service';
+import { RoastNotepadComponent } from './roast-notepad.component';
 import gsap from 'gsap';
 import * as THREE from 'three';
 import * as _confetti from 'canvas-confetti';
@@ -13,7 +14,7 @@ const confetti = (_confetti as any).default || _confetti;
 @Component({
   selector: 'app-bank-table',
   standalone: true,
-  imports: [CommonModule, SafeHtmlPipe],
+  imports: [CommonModule, SafeHtmlPipe, RoastNotepadComponent],
   template: `
     <div class="space-y-6">
 
@@ -163,23 +164,8 @@ const confetti = (_confetti as any).default || _confetti;
           </div>
         </div>
 
-        <!-- ── ROW 2: Roast Engine ── -->
-        <div class="glass-card glass-morphic animate__animated animate__fadeInUp rounded-3xl p-6 relative overflow-hidden" [style.minHeight.px]="roastHeight()" style="animation-duration: 0.8s; animation-delay: 0.1s; animation-fill-mode: both;">
-          <div class="absolute top-0 right-0 w-40 h-40 rounded-full pointer-events-none" style="background:radial-gradient(circle,rgba(168,85,247,0.08) 0%,transparent 70%);"></div>
-          
-          <div style="float: left; width: 80px; height: 80px; margin-right: 20px; margin-bottom: 8px; position: relative;" class="rounded-2xl flex items-center justify-center flex-shrink-0" id="roast-sphere-container">
-            <canvas #roastSphereCanvas class="w-full h-full absolute inset-0"></canvas>
-          </div>
-          
-          <div class="block mt-2">
-            <div class="flex items-center gap-2 mb-2">
-              <p class="text-xs font-bold uppercase tracking-widest text-purple-400">Roast Engine™ — NLG Analysis</p>
-              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider" style="background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.2); color:#c084fc;">AI Generated</span>
-            </div>
-            <p class="text-lg text-gray-200 font-medium italic leading-relaxed">"{{ result?.roast }}"</p>
-          </div>
-          <div class="clear-both"></div>
-        </div>
+        <!-- ── ROW 2: Roast Engine (Tegaki Post-it Note) ── -->
+        <app-roast-notepad [aiRoast]="result?.ai_roast || result?.roast || ''"></app-roast-notepad>
 
 
         <!-- ── ROW 3: ARIMA Forecast + Smart Cards ── -->
@@ -409,7 +395,6 @@ export class BankTableComponent {
   scoreResource = this.api.creditScoreResource;
 
   @ViewChild('scoreDisplay') scoreDisplayRef!: ElementRef<HTMLElement>;
-  @ViewChild('roastSphereCanvas') roastSphereCanvasRef?: ElementRef<HTMLCanvasElement>;
 
   techBadges = ['PyTesseract OCR', 'XGBoost ML', 'K-Means Clustering', 'ARIMA Forecast', 'SHAP XAI', 'AES Encryption'];
 
@@ -421,11 +406,8 @@ export class BankTableComponent {
   private lastScore = 0;
   private confettiFired = false;
   showSuccessToast = false;
-  
-  private renderer?: THREE.WebGLRenderer;
+  private renderer?: any;
   private animFrame?: number;
-  private startTime = performance.now();
-  private sphereMesh?: THREE.LineSegments;
 
   ngDoCheck() {
     const score = this.result?.credit_score;
@@ -433,19 +415,14 @@ export class BankTableComponent {
     // We must wait for the DOM to render the @if blocks before executing animations
     if (score && score !== this.lastScore) {
       const scoreDOM = this.scoreDisplayRef?.nativeElement;
-      const roastDOM = this.roastSphereCanvasRef?.nativeElement;
       
       // Only lock the lastScore once the physical DOM target nodes exist
-      if (scoreDOM && roastDOM) {
+      if (scoreDOM) {
         this.lastScore = score;
         this.confettiFired = false; 
         this.showSuccessToast = false;
         
         this.animateScore(score);
-        
-        if (!this.renderer) {
-          this.initThreeJsSphere();
-        }
       }
     }
   }
@@ -475,40 +452,8 @@ export class BankTableComponent {
     return totalHeight;
   });
 
-  private initThreeJsSphere() {
-    const canvas = this.roastSphereCanvasRef!.nativeElement;
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
-    camera.position.z = 4;
-    this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-    this.renderer.setSize(80, 80);
-    this.renderer.setPixelRatio(window.devicePixelRatio || 1);
-
-    const geo = new THREE.IcosahedronGeometry(1.5, 1);
-    const edges = new THREE.EdgesGeometry(geo);
-    const mat = new THREE.LineBasicMaterial({ color: 0xec4899, transparent: true, opacity: 0.6 });
-    this.sphereMesh = new THREE.LineSegments(edges, mat);
-    scene.add(this.sphereMesh);
-
-    const loop = () => {
-      this.animFrame = requestAnimationFrame(loop);
-      if (this.sphereMesh) {
-         const t = (performance.now() - this.startTime) / 1000;
-         this.sphereMesh.rotation.y = t * 0.8;
-         this.sphereMesh.rotation.x = t * 0.5;
-         
-         // Deconstructing effect by scaling randomly slightly
-         const scale = 1 + Math.sin(t * 5) * 0.05;
-         this.sphereMesh.scale.set(scale, scale, scale);
-      }
-      this.renderer!.render(scene, camera);
-    };
-    loop();
-  }
-
   ngOnDestroy() {
     if (this.animFrame) cancelAnimationFrame(this.animFrame);
-    if (this.renderer) this.renderer.dispose();
   }
 
   private animateScore(target: number) {

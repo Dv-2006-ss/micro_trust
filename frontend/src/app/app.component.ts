@@ -8,7 +8,9 @@ import { RouterModule } from '@angular/router';
   standalone: true,
   imports: [CommonModule, RouterModule, TuiRoot],
   template: `
-    <router-outlet></router-outlet>
+    <tui-root>
+      <router-outlet></router-outlet>
+    </tui-root>
   `
 })
 export class AppComponent {
