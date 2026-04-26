@@ -47,39 +47,61 @@ export class ResourceApiService {
       if (!request) return null as any; // Initial Idle State
 
       console.log(`[Frontend] Initiating Analysis for Merchant: ${request.merchantId}`);
-      try {
-        const formData = new FormData();
-        formData.append('passbook_file', request.file);
-        formData.append('merchant_id', request.merchantId);
 
-        if (request.pdfPassword) {
-            formData.append('pdf_password', request.pdfPassword);
+      const MAX_RETRIES = 2;
+      const RETRY_DELAY_MS = 5000; // 5 seconds between retries
+
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          const formData = new FormData();
+          formData.append('passbook_file', request.file);
+          formData.append('merchant_id', request.merchantId);
+
+          if (request.pdfPassword) {
+              formData.append('pdf_password', request.pdfPassword);
+          }
+          if (request.primaryBank) {
+              formData.append('primary_bank', request.primaryBank);
+          }
+
+          // Safely extract token + primary_bank from localStorage
+          const stored = localStorage.getItem('microtrust_user');
+          const parsed = stored ? JSON.parse(stored) : {};
+          const token = parsed.token || '';
+
+          // Pointing to Node.js Orchestrator protected route
+          const response = await fetch(`${environment.apiUrl}/analyze`, {
+            method: 'POST',
+            body: formData,
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+
+          // Retry on transient Render cold-start errors (502/503/504)
+          if ([502, 503, 504].includes(response.status) && attempt < MAX_RETRIES) {
+            console.warn(`[Frontend] API returned ${response.status} — Render cold start detected. Retrying in ${RETRY_DELAY_MS / 1000}s... (attempt ${attempt + 1}/${MAX_RETRIES})`);
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+            continue;
+          }
+
+          if (!response.ok) {
+            throw new Error(`API responded with status: ${response.status}`);
+          }
+
+          return await response.json();
+        } catch (error) {
+          // On network-level errors, retry if attempts remain
+          if (attempt < MAX_RETRIES && error instanceof TypeError) {
+            console.warn(`[Frontend] Network error — retrying in ${RETRY_DELAY_MS / 1000}s... (attempt ${attempt + 1}/${MAX_RETRIES})`);
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+            continue;
+          }
+          console.error('OCR/ML Processing submission failed', error);
+          throw error;
         }
-        if (request.primaryBank) {
-            formData.append('primary_bank', request.primaryBank);
-        }
-
-        // Safely extract token + primary_bank from localStorage
-        const stored = localStorage.getItem('microtrust_user');
-        const parsed = stored ? JSON.parse(stored) : {};
-        const token = parsed.token || '';
-
-        // Pointing to Node.js Orchestrator protected route
-        const response = await fetch(`${environment.apiUrl}/analyze`, {
-          method: 'POST',
-          body: formData,
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-
-        if (!response.ok) {
-          throw new Error(`API responded with status: ${response.status}`);
-        }
-
-        return await response.json();
-      } catch (error) {
-        console.error('OCR/ML Processing submission failed', error);
-        throw error;
       }
+
+      // Should not reach here, but safety fallback
+      throw new Error('Analysis failed after maximum retries');
     }
   });
 

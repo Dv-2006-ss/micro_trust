@@ -64,12 +64,12 @@ export const analyzePassbook = async (req, res, next) => {
         console.log(`[Node.js] Streaming file for merchant "${merchant_id}" ...`);
         console.log('[Node.js] ──────────────────────────────────────────────');
 
-        // ── TIMEOUT HANDLING: 60s timeout for Render cold-start wake-ups ─────
+        // ── TIMEOUT HANDLING: 120s timeout for Render cold-start wake-ups ────
         const response = await fetch(targetUrl, {
             method: 'POST',
             body: form,
             // DO NOT manually set Content-Type header! Native fetch handles the boundary dynamically.
-            signal: AbortSignal.timeout(60000) // 60 second timeout for Render free-tier cold starts
+            signal: AbortSignal.timeout(120000) // 120 second timeout for Render free-tier cold starts + ML model loading
         });
 
         // ── Handle non-OK responses from Python without crashing ─────────────
@@ -134,7 +134,7 @@ export const analyzePassbook = async (req, res, next) => {
             return res.status(504).json({
                 success: false,
                 message: 'AI Engine Handshake Failed',
-                error: 'The Python Intelligence Engine did not respond within 60 seconds. It may be waking up on Render free tier — please retry in 30 seconds.'
+                error: 'The Python Intelligence Engine did not respond within 120 seconds. It may be waking up on Render free tier — please retry in 30 seconds.'
             });
         }
 

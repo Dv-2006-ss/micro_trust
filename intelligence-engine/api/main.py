@@ -29,29 +29,49 @@ app.add_middleware(
 # ══════════════════════════════════════════════════════════════════════════════
 #  GLOBAL MODEL LOADING — Singletons loaded ONCE at worker startup
 #  This prevents re-initialization on every request and saves ~200MB RAM.
+#  NOTE: SHAP is loaded LAZILY on first request, not at startup, to prevent
+#  OOM kills on Render free-tier (512MB limit).
 # ══════════════════════════════════════════════════════════════════════════════
 logger.info("=" * 70)
 logger.info("  MICRO-TRUST V2 INTELLIGENCE ENGINE — STARTUP")
 logger.info("=" * 70)
 
-ocr_processor = SecureOCRProcessor()
-xgb_classifier = CreditApprovalXGBoost()
-kmeans_cluster = MerchantPersonaKMeans(n_clusters=3)
-
-# ── SHAP Explainer: Initialize ONCE from the fitted XGBoost model ─────────
-shap_explainer = None
 try:
-    if xgb_classifier._fitted:
-        import shap
-        # Extract the raw XGBoost model from the pipeline for SHAP
-        raw_xgb_model = xgb_classifier.pipeline.named_steps['classifier']
-        shap_explainer = shap.TreeExplainer(raw_xgb_model)
-        logger.info("✅ SHAP TreeExplainer initialized from fitted XGBoost model.")
-    else:
-        logger.warning("⚠️ XGBoost model is not fitted — SHAP explainer skipped (will use simulated values).")
+    ocr_processor = SecureOCRProcessor()
+    xgb_classifier = CreditApprovalXGBoost()
+    kmeans_cluster = MerchantPersonaKMeans(n_clusters=3)
 except Exception as e:
-    logger.error(f"⚠️ SHAP explainer initialization failed: {e} — falling back to simulated values.")
-    shap_explainer = None
+    logger.critical(f"🚨 CRITICAL: Model loading failed during startup: {e}")
+    # Create safe fallback instances so the worker doesn't crash entirely
+    ocr_processor = SecureOCRProcessor()
+    from models.xgboost_classifier import CreditApprovalXGBoost as _XGB
+    from models.kmeans_clustering import MerchantPersonaKMeans as _KM
+    xgb_classifier = _XGB()
+    kmeans_cluster = _KM(n_clusters=3)
+
+# ── SHAP Explainer: LAZY INIT — loaded on first /analyze request ──────────
+# Importing SHAP at startup adds ~150MB RAM and can cause OOM on free tier.
+shap_explainer = None
+_shap_init_attempted = False
+
+def _lazy_init_shap():
+    """Initialize SHAP explainer lazily on first request, not at startup."""
+    global shap_explainer, _shap_init_attempted
+    if _shap_init_attempted:
+        return
+    _shap_init_attempted = True
+    try:
+        if xgb_classifier._fitted:
+            import shap
+            raw_xgb_model = xgb_classifier.pipeline.named_steps['classifier']
+            shap_explainer = shap.TreeExplainer(raw_xgb_model)
+            logger.info("✅ SHAP TreeExplainer initialized (lazy) from fitted XGBoost model.")
+        else:
+            logger.warning("⚠️ XGBoost model is not fitted — SHAP explainer skipped (will use simulated values).")
+    except Exception as e:
+        logger.error(f"⚠️ SHAP explainer lazy init failed: {e} — falling back to simulated values.")
+        shap_explainer = None
+    gc.collect()
 
 logger.info("=" * 70)
 logger.info("  STARTUP COMPLETE — Engine ready to receive requests")
@@ -257,6 +277,9 @@ async def analyze_data(
     primary_bank: str = Form(None),
     passbook_file: UploadFile = File(...)
 ):
+    # ── Lazy-init SHAP on first request ───────────────────────────────────
+    _lazy_init_shap()
+
     # ── Start the wall clock for timeout protection ───────────────────────
     request_start = time.monotonic()
 
