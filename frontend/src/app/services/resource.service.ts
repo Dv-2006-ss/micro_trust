@@ -96,8 +96,9 @@ export class ResourceApiService {
       // ── Start pipeline stage simulation ───────────────────────────
       this.startPipelineSimulation();
 
-      const MAX_RETRIES = 3;
-      const RETRY_DELAY_MS = 10000; // 10 seconds between retries (backend pre-warms Python service)
+      const MAX_RETRIES = 4;
+      const RETRY_DELAY_MS = 15000; // 15 seconds between retries (backend pre-warms Python service)
+      const FETCH_TIMEOUT_MS = 180000; // 3 minute timeout per attempt (Render cold start + ML processing)
 
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         try {
@@ -121,7 +122,8 @@ export class ResourceApiService {
           const response = await fetch(`${environment.apiUrl}/analyze`, {
             method: 'POST',
             body: formData,
-            headers: { 'Authorization': `Bearer ${token}` }
+            headers: { 'Authorization': `Bearer ${token}` },
+            signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
           });
 
           // Retry on transient Render cold-start errors (502/503/504)
@@ -181,8 +183,8 @@ export class ResourceApiService {
     this.pipelineStages.set(stages);
     this.pipelineActive.set(true);
 
-    // Advance each stage with staggered delays
-    const stageDelays = [0, 1500, 3500, 5500, 7500, 9500, 11500, 13500];
+    // Advance each stage with staggered delays (stretched for Render cold-start scenarios)
+    const stageDelays = [0, 2000, 5000, 8000, 11000, 15000, 19000, 24000];
 
     stageDelays.forEach((delay, index) => {
       if (index === 0) return; // First stage is already active
