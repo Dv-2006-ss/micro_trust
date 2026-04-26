@@ -48,8 +48,8 @@ export class ResourceApiService {
 
       console.log(`[Frontend] Initiating Analysis for Merchant: ${request.merchantId}`);
 
-      const MAX_RETRIES = 2;
-      const RETRY_DELAY_MS = 5000; // 5 seconds between retries
+      const MAX_RETRIES = 3;
+      const RETRY_DELAY_MS = 10000; // 10 seconds between retries (backend pre-warms Python service)
 
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         try {

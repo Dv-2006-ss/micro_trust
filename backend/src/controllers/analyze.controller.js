@@ -1,6 +1,39 @@
 import fs from 'node:fs';
 import { Merchant } from '../models/Merchant.js';
 
+// ── Pre-warm utility: Wake up the Python service before sending heavy payloads ──
+async function warmUpPythonService(baseUrl) {
+    console.log('[Node.js] 🔥 Pre-warming Python Intelligence Engine...');
+    const healthUrl = `${baseUrl}/`;
+    const MAX_WARM_RETRIES = 5;
+    const WARM_RETRY_DELAY = 8000; // 8 seconds between warm-up pings
+
+    for (let attempt = 1; attempt <= MAX_WARM_RETRIES; attempt++) {
+        try {
+            const resp = await fetch(healthUrl, {
+                method: 'GET',
+                signal: AbortSignal.timeout(30000) // 30s per ping attempt
+            });
+            if (resp.ok) {
+                const body = await resp.json();
+                console.log(`[Node.js] ✅ Python Engine is WARM (attempt ${attempt}/${MAX_WARM_RETRIES}):`, body);
+                return true;
+            }
+            console.warn(`[Node.js] ⚠️ Warm-up got status ${resp.status} (attempt ${attempt}/${MAX_WARM_RETRIES})`);
+        } catch (err) {
+            console.warn(`[Node.js] ⏳ Warm-up attempt ${attempt}/${MAX_WARM_RETRIES} failed: ${err.message}`);
+        }
+
+        if (attempt < MAX_WARM_RETRIES) {
+            console.log(`[Node.js] Waiting ${WARM_RETRY_DELAY / 1000}s before next warm-up ping...`);
+            await new Promise(resolve => setTimeout(resolve, WARM_RETRY_DELAY));
+        }
+    }
+
+    console.error('[Node.js] ❌ Python Engine failed to warm up after all attempts.');
+    return false;
+}
+
 export const analyzePassbook = async (req, res, next) => {
     // ── ENVIRONMENT CHECK: Validate PYTHON_API_URL before doing anything ─────
     const pythonApiUrl = process.env.PYTHON_API_URL;
@@ -32,7 +65,18 @@ export const analyzePassbook = async (req, res, next) => {
             return res.status(400).json({ success: false, error: 'Missing passbook file.' });
         }
 
-        // ── Build the multipart form for the Python Intelligence Engine ──────
+        // ── STEP 1: Pre-warm the Python service (critical for Render free tier) ──
+        const isWarm = await warmUpPythonService(baseUrl);
+        if (!isWarm) {
+            console.error('[Node.js] Python service is unreachable after warm-up attempts.');
+            return res.status(503).json({
+                success: false,
+                message: 'AI Engine Handshake Failed',
+                error: 'The Python Intelligence Engine is currently waking up. Please retry in 30 seconds.'
+            });
+        }
+
+        // ── STEP 2: Build the multipart form for the Python Intelligence Engine ─
         const form = new FormData();
         form.append('merchant_id', merchant_id);
 
@@ -56,40 +100,71 @@ export const analyzePassbook = async (req, res, next) => {
         const fileBlob = new Blob([fileBuffer], { type: file.mimetype || 'application/octet-stream' });
         form.append('passbook_file', fileBlob, file.originalname);
 
-        // ── EXPLICIT LOGGING: Surface the target URL in Render logs ──────────
+        // ── STEP 3: Send analysis request with retry logic ──────────────────────
         const targetUrl = `${baseUrl}/analyze`;
-        console.log('[Node.js] ──────────────────────────────────────────────');
-        console.log(`[Node.js] Target Python URL: ${targetUrl}`);
-        console.log(`[Node.js] PYTHON_API_URL env: ${pythonApiUrl}`);
-        console.log(`[Node.js] Streaming file for merchant "${merchant_id}" ...`);
-        console.log('[Node.js] ──────────────────────────────────────────────');
+        const MAX_ANALYZE_RETRIES = 2;
+        const ANALYZE_RETRY_DELAY = 5000; // 5 seconds between retries
+        let lastError = null;
+        let data = null;
 
-        // ── TIMEOUT HANDLING: 120s timeout for Render cold-start wake-ups ────
-        const response = await fetch(targetUrl, {
-            method: 'POST',
-            body: form,
-            // DO NOT manually set Content-Type header! Native fetch handles the boundary dynamically.
-            signal: AbortSignal.timeout(120000) // 120 second timeout for Render free-tier cold starts + ML model loading
-        });
+        for (let attempt = 1; attempt <= MAX_ANALYZE_RETRIES; attempt++) {
+            console.log('[Node.js] ──────────────────────────────────────────────');
+            console.log(`[Node.js] Target Python URL: ${targetUrl}`);
+            console.log(`[Node.js] PYTHON_API_URL env: ${pythonApiUrl}`);
+            console.log(`[Node.js] Streaming file for merchant "${merchant_id}" (attempt ${attempt}/${MAX_ANALYZE_RETRIES})...`);
+            console.log('[Node.js] ──────────────────────────────────────────────');
 
-        // ── Handle non-OK responses from Python without crashing ─────────────
-        if (!response.ok) {
-            let errorBody = '';
             try {
-                errorBody = await response.text();
-            } catch (_) {
-                errorBody = '(could not read response body)';
+                // ── TIMEOUT HANDLING: 120s timeout for ML model processing ──────
+                const response = await fetch(targetUrl, {
+                    method: 'POST',
+                    body: form,
+                    // DO NOT manually set Content-Type header! Native fetch handles the boundary dynamically.
+                    signal: AbortSignal.timeout(120000) // 120 second timeout
+                });
+
+                // ── Handle non-OK responses from Python ─────────────────────────
+                if (!response.ok) {
+                    let errorBody = '';
+                    try {
+                        errorBody = await response.text();
+                    } catch (_) {
+                        errorBody = '(could not read response body)';
+                    }
+                    console.error(`[Python API Error] Status: ${response.status}, Body: ${errorBody} (attempt ${attempt}/${MAX_ANALYZE_RETRIES})`);
+
+                    // Retry on transient errors (502, 503, 504)
+                    if ([502, 503, 504].includes(response.status) && attempt < MAX_ANALYZE_RETRIES) {
+                        console.log(`[Node.js] Retrying in ${ANALYZE_RETRY_DELAY / 1000}s...`);
+                        await new Promise(resolve => setTimeout(resolve, ANALYZE_RETRY_DELAY));
+                        continue;
+                    }
+
+                    return res.status(502).json({
+                        success: false,
+                        message: 'AI Engine Handshake Failed',
+                        error: `Python API responded with status ${response.status}: ${errorBody}`
+                    });
+                }
+
+                data = await response.json();
+                console.log(`[Node.js] ✅ Analysis complete for merchant "${merchant_id}" — Score: ${data.credit_score}`);
+                break; // Success — exit retry loop
+
+            } catch (err) {
+                lastError = err;
+                console.error(`[Node.js] Attempt ${attempt}/${MAX_ANALYZE_RETRIES} failed: ${err.message}`);
+                if (attempt < MAX_ANALYZE_RETRIES) {
+                    console.log(`[Node.js] Retrying in ${ANALYZE_RETRY_DELAY / 1000}s...`);
+                    await new Promise(resolve => setTimeout(resolve, ANALYZE_RETRY_DELAY));
+                }
             }
-            console.error(`[Python API Error] Status: ${response.status}, Body: ${errorBody}`);
-            return res.status(502).json({
-                success: false,
-                message: 'AI Engine Handshake Failed',
-                error: `Python API responded with status ${response.status}: ${errorBody}`
-            });
         }
 
-        const data = await response.json();
-        console.log(`[Node.js] ✅ Analysis complete for merchant "${merchant_id}" — Score: ${data.credit_score}`);
+        // If all retries exhausted, throw the last error
+        if (!data) {
+            throw lastError || new Error('All analysis attempts failed');
+        }
 
         // ── Persist to MongoDB (if connected) ────────────────────────────────
         if (process.env.MONGODB_URI && process.env.MONGODB_URI !== 'mock_bypass') {

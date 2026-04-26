@@ -1,10 +1,14 @@
 # Micro-Trust V2 — Render Deployment
 # Deploy all three services from one repo using Render's render.yaml
+# NOTE: Actual Render service names:
+#   Backend:      micro-trust-1  → https://micro-trust-1.onrender.com
+#   Intelligence: micro-trust    → https://micro-trust.onrender.com
+#   Frontend:     micro-trust-2  → https://micro-trust-2.onrender.com
 
 services:
   # ── 1. Node.js Orchestrator (API) ──────────────────────────────────────
   - type: web
-    name: microtrust-backend
+    name: micro-trust-1
     runtime: node
     rootDir: backend
     buildCommand: npm install
@@ -13,10 +17,7 @@ services:
       - key: PORT
         value: 3000
       - key: PYTHON_API_URL
-        fromService:
-          name: microtrust-intelligence
-          type: web
-          property: hostWithScheme
+        value: https://micro-trust.onrender.com
       - key: MONGODB_URI
         sync: false      # Set manually in Render dashboard
       - key: JWT_SECRET
@@ -28,7 +29,7 @@ services:
 
   # ── 2. Python Intelligence Engine ──────────────────────────────────────
   - type: web
-    name: microtrust-intelligence
+    name: micro-trust
     runtime: docker
     dockerfilePath: intelligence-engine/Dockerfile
     dockerContext: intelligence-engine
@@ -40,7 +41,7 @@ services:
 
   # ── 3. Angular Frontend (Static Site) ──────────────────────────────────
   - type: web
-    name: microtrust-frontend
+    name: micro-trust-2
     runtime: static
     rootDir: frontend
     buildCommand: npm install && npm run build
