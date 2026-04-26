@@ -11,7 +11,7 @@ import { TegakiEngineService } from '../services/tegaki-engine.service';
 @Component({
   selector: 'app-roast-notepad',
   standalone: true,
-  imports: [CommonModule, TuiBlock, TuiIcon],
+  imports: [CommonModule, TuiIcon],
   template: `
     <!-- Outer Taiga UI Block / Card wrapper -->
     <div tuiBlock class="roast-card-outer">

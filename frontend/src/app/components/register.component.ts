@@ -20,8 +20,8 @@ const BANKS = ['HDFC', 'SBI', 'ICICI', 'Axis', 'Kotak', 'PNB'];
   imports: [
     CommonModule, RouterModule, ReactiveFormsModule,
     TuiTextfieldComponent, TuiInputDirective,
-    TuiButton, TuiLoader, TuiLabel, TuiErrorComponent,
-    TuiBlock, TuiProgress
+    TuiLoader,
+    TuiProgress
   ],
   template: `
     <div class="auth-viewport">

@@ -1,20 +1,21 @@
 import {
-  Component, computed, inject, ViewChild, ElementRef, AfterViewInit
+  Component, computed, inject, ViewChild, ElementRef, signal
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ResourceApiService } from '../services/resource.service';
 import { PretextService } from '../services/pretext.service';
 import { RoastNotepadComponent } from './roast-notepad.component';
+import { TegakiEngineService } from '../services/tegaki-engine.service';
 import gsap from 'gsap';
 import * as THREE from 'three';
 import * as _confetti from 'canvas-confetti';
-import { SafeHtmlPipe } from '../pipes/safe-html.pipe';
 const confetti = (_confetti as any).default || _confetti;
 
 @Component({
   selector: 'app-bank-table',
   standalone: true,
-  imports: [CommonModule, SafeHtmlPipe, RoastNotepadComponent],
+  imports: [CommonModule, RoastNotepadComponent, FormsModule],
   template: `
     <div class="space-y-6">
 
@@ -104,7 +105,7 @@ const confetti = (_confetti as any).default || _confetti;
                 <!-- Gauge -->
                 <div class="w-full h-2 rounded-full mb-4 overflow-hidden" style="background:rgba(255,255,255,0.05);">
                   <div class="h-full rounded-full transition-all duration-1000"
-                       [style.width.%]="(result?.credit_score ?? 0) / 9"
+                       [style.width.%]="(simulatedScore() ?? result?.credit_score ?? 0) / 9"
                        style="background:linear-gradient(90deg,#ef4444,#f59e0b,#10b981); box-shadow: 0 0 10px rgba(6,182,212,0.4);"></div>
                 </div>
 
@@ -116,6 +117,33 @@ const confetti = (_confetti as any).default || _confetti;
                   <div>
                     <p class="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">Interest</p>
                     <p class="text-cyan-400 font-black text-xl">{{ result?.suggested_interest }}</p>
+                  </div>
+                </div>
+                
+                <!-- What-If Credit Simulator -->
+                <div class="mt-6 pt-4 border-t" style="border-color:rgba(255,255,255,0.05);">
+                  <div class="flex items-center gap-2 mb-4">
+                    <svg class="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+                    </svg>
+                    <p class="text-gray-400 text-xs font-bold uppercase tracking-widest">'What-If' Simulator</p>
+                  </div>
+                  
+                  <div class="space-y-4">
+                    <div>
+                      <div class="flex justify-between mb-1 text-xs text-gray-400">
+                        <span>Extra Monthly Spend</span>
+                        <span class="text-emerald-400 font-bold">₹{{ monthlySpend }}</span>
+                      </div>
+                      <input type="range" min="0" max="100000" step="1000" [(ngModel)]="monthlySpend" (ngModelChange)="onSimulationChange()" class="w-full accent-emerald-400" />
+                    </div>
+                    <div>
+                      <div class="flex justify-between mb-1 text-xs text-gray-400">
+                        <span>Extra Total Debt</span>
+                        <span class="text-rose-400 font-bold">₹{{ totalDebt }}</span>
+                      </div>
+                      <input type="range" min="0" max="500000" step="5000" [(ngModel)]="totalDebt" (ngModelChange)="onSimulationChange()" class="w-full accent-rose-400" />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -135,13 +163,16 @@ const confetti = (_confetti as any).default || _confetti;
                   @if (shapFactors().length > 0) {
                     @for (factor of shapFactors(); track factor.label) {
                       <div class="shap-factor-row" style="opacity: 0;">
-                        <div class="flex justify-between text-xs font-bold uppercase tracking-wider mb-1.5">
-                          <span class="text-gray-400">{{ factor.label }}</span>
-                          <span [style.color]="factor.color">{{ factor.value }}%</span>
+                        <div class="flex justify-between items-center mb-1.5">
+                          <span class="text-gray-400 text-xs font-bold uppercase tracking-wider">{{ factor.label }}</span>
+                          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                                [ngClass]="factor.isPositive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'">
+                            {{ factor.isPositive ? '+' : '' }}{{ factor.value | number:'1.0-0' }}
+                          </span>
                         </div>
                         <div class="relative w-full h-2.5 rounded-full overflow-hidden" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.04);">
                           <div class="absolute inset-y-0 left-0 rounded-full transition-all duration-1000"
-                               [style.width.%]="factor.value"
+                               [style.width.%]="factor.absPercent"
                                [style.background]="factor.gradient"
                                [style.boxShadow]="'0 0 12px 2px ' + factor.glow"></div>
                         </div>
@@ -347,6 +378,72 @@ const confetti = (_confetti as any).default || _confetti;
           </div>
         </div>
       }
+
+      <!-- ═══════════════  GENERATE SIGNED REPORT BUTTON  ═══════════════ -->
+      @if (scoreResource.value()) {
+        <div class="mt-8 flex justify-center animate__animated animate__fadeInUp" style="animation-duration: 0.8s; animation-delay: 0.6s; animation-fill-mode: both;">
+          <button (click)="generateCertificate()"
+                  class="px-8 py-4 rounded-2xl text-base font-black text-white transition-all hover:scale-105"
+                  style="background:linear-gradient(135deg,#06b6d4,#4f46e5); box-shadow:0 0 20px rgba(6,182,212,0.4);">
+            ✍️ Generate Signed Report
+          </button>
+        </div>
+      }
+
+      <!-- ═══════════════  CERTIFICATE OVERLAY  ═══════════════ -->
+      @if (showCertificate()) {
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate__animated animate__fadeIn">
+          <div class="relative w-full max-w-2xl bg-white rounded-md p-10 shadow-2xl overflow-hidden"
+               style="background-image: url('data:image/svg+xml,%3Csvg width=%22100%22 height=%22100%22 viewBox=%220 0 100 100%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cg fill=%22%23e2e8f0%22 fill-opacity=%220.4%22 fill-rule=%22evenodd%22%3E%3Cpath d=%22M11 18c1.38 0 2.5-1.12 2.5-2.5S12.38 13 11 13s-2.5 1.12-2.5 2.5S9.62 18 11 18zm30-8c1.38 0 2.5-1.12 2.5-2.5S42.38 5 41 5s-2.5 1.12-2.5 2.5S39.62 10 41 10zm30 8c1.38 0 2.5-1.12 2.5-2.5S72.38 13 71 13s-2.5 1.12-2.5 2.5S69.62 18 71 18z%22/%3E%3C/g%3E%3C/svg%3E');">
+            
+            <!-- Close Button -->
+            <button (click)="closeCertificate()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-800">
+              <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+
+            <!-- Certificate Header -->
+            <div class="text-center border-b-2 border-gray-200 pb-6 mb-8">
+              <h1 class="text-3xl font-black text-gray-800 uppercase tracking-widest font-serif">Official Certificate of Analysis</h1>
+              <p class="text-sm text-gray-500 uppercase tracking-widest mt-2">Micro-Trust Intelligence Engine v2.0</p>
+            </div>
+
+            <!-- Content -->
+            <div class="space-y-6 text-gray-800 font-serif">
+              <p>This document certifies that the financial entity associated with <strong class="text-indigo-600">{{ result?.merchant_id || 'Entity' }}</strong> has undergone rigorous analysis using PyTesseract OCR, XGBoost ML, and K-Means Clustering.</p>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <p class="text-xs text-gray-500 uppercase tracking-widest">Assessed Credit Score</p>
+                  <p class="text-2xl font-black">{{ simulatedScore() ?? result?.credit_score }}</p>
+                </div>
+                <div>
+                  <p class="text-xs text-gray-500 uppercase tracking-widest">Risk Tier / Decision</p>
+                  <p class="text-2xl font-black">{{ result?.risk_level }} / {{ result?.approval_status ? 'APPROVED' : 'REVIEW' }}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Signature Section -->
+            <div class="mt-12 flex justify-end">
+              <div class="text-center">
+                <!-- SVG Container for Tegaki -->
+                <div #signatureContainer class="h-24 w-64 border-b border-gray-400 mb-2 flex items-end justify-center"></div>
+                <p class="text-xs text-gray-500 uppercase tracking-widest">Digital Signature</p>
+                <p class="text-[10px] text-gray-400 font-mono mt-1">Hash: {{ result?.merchant_id || '0xABCD' }} • {{ currentDate | date:'medium' }}</p>
+              </div>
+            </div>
+            
+            <!-- Seal -->
+            <div class="absolute bottom-10 left-10 w-24 h-24 rounded-full border-4 border-amber-500 flex items-center justify-center opacity-30 transform -rotate-12">
+              <div class="text-amber-500 text-[10px] font-bold uppercase text-center leading-tight">
+                Micro<br>Trust<br>Verified
+              </div>
+            </div>
+
+          </div>
+        </div>
+      }
     </div>
   `,
   styles: [`
@@ -392,11 +489,14 @@ const confetti = (_confetti as any).default || _confetti;
 export class BankTableComponent {
   private api = inject(ResourceApiService);
   private pretext = inject(PretextService);
+  private tegaki = inject(TegakiEngineService);
   scoreResource = this.api.creditScoreResource;
 
   @ViewChild('scoreDisplay') scoreDisplayRef!: ElementRef<HTMLElement>;
+  @ViewChild('signatureContainer') signatureContainerRef?: ElementRef<HTMLElement>;
 
   techBadges = ['PyTesseract OCR', 'XGBoost ML', 'K-Means Clustering', 'ARIMA Forecast', 'SHAP XAI', 'AES Encryption'];
+  currentDate = new Date();
 
   get result() {
     return this.scoreResource.value() as any;
@@ -408,6 +508,50 @@ export class BankTableComponent {
   showSuccessToast = false;
   private renderer?: any;
   private animFrame?: number;
+
+  simulatedScore = signal<number | null>(null);
+  monthlySpend = 0;
+  totalDebt = 0;
+  private simulationTimeout: any;
+  showCertificate = signal<boolean>(false);
+
+  generateCertificate() {
+    this.showCertificate.set(true);
+    // Wait for view to render the modal and container
+    setTimeout(() => {
+      if (this.signatureContainerRef) {
+        const textToSign = `${this.result?.merchant_id || 'System'} Auth ${this.result?.approval_status ? 'Approved' : 'Verified'}`;
+        this.tegaki.generateHandwriting(textToSign, this.signatureContainerRef.nativeElement, {
+          inkColor: '#1e3a8a',
+          inkWidth: 2,
+          fontSize: 40,
+          animDuration: 3000,
+          fontFamily: "'Caveat', cursive",
+          maxWidth: 250
+        });
+      }
+    }, 100);
+  }
+
+  closeCertificate() {
+    this.showCertificate.set(false);
+  }
+
+  onSimulationChange() {
+    clearTimeout(this.simulationTimeout);
+    this.simulationTimeout = setTimeout(async () => {
+      const res = this.result;
+      if (!res) return;
+      try {
+        const data = await this.api.simulateCreditScore(res.merchant_id, this.monthlySpend, this.totalDebt, res.credit_score);
+        this.simulatedScore.set(data.simulated_credit_score);
+        // Animate new score
+        this.animateScore(data.simulated_credit_score);
+      } catch (err) {
+        console.error('Simulation error:', err);
+      }
+    }, 400); // 400ms debounce
+  }
 
   ngDoCheck() {
     const score = this.result?.credit_score;
@@ -513,24 +657,32 @@ export class BankTableComponent {
     // Guard: ensure SHAP is an array and not empty
     if (!shap || !Array.isArray(shap) || shap.length === 0) return [];
     
-    return shap.map((s: any) => {
+    // Process and sort top 2 positive and top 2 negative
+    const processed = shap.map((s: any) => {
       const labelStr = s.name.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-      let color, gradient, glow;
-      if (s.name === 'income_stability') {
-          color = '#34d399'; gradient = 'linear-gradient(90deg,#059669,#34d399)'; glow = 'rgba(16,185,129,0.5)';
-      } else if (s.name === 'spending_risk') {
-          color = '#fb923c'; gradient = 'linear-gradient(90deg,#dc2626,#fb923c)'; glow = 'rgba(239,68,68,0.5)';
-      } else if (s.name === 'liquidity_buffer') {
-          color = '#67e8f9'; gradient = 'linear-gradient(90deg,#0891b2,#818cf8)'; glow = 'rgba(6,182,212,0.5)';
+      const val = Number(s.value);
+      const isPositive = val >= 0;
+      
+      let gradient, glow;
+      if (isPositive) {
+          gradient = 'linear-gradient(90deg,#059669,#34d399)'; glow = 'rgba(16,185,129,0.5)';
       } else {
-          color = '#c084fc'; gradient = 'linear-gradient(90deg,#7c3aed,#c084fc)'; glow = 'rgba(139,92,246,0.5)';
+          gradient = 'linear-gradient(90deg,#dc2626,#fb923c)'; glow = 'rgba(239,68,68,0.5)';
       }
+      
       return {
           label: labelStr,
-          value: Number(s.value),
-          color, gradient, glow
+          value: val,
+          absPercent: Math.min(100, Math.abs(val) * 2), // visual width
+          isPositive, gradient, glow
       };
     });
+    
+    // Sort by absolute value to show most impactful first
+    processed.sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+    
+    // Return top 4
+    return processed.slice(0, 4);
   });
 
   // ── Explicit Angular computed signals for Live Real-Time GUI Binding ──

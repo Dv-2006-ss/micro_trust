@@ -271,4 +271,27 @@ export class ResourceApiService {
   public getLatestResult(): AnalysisResponse | undefined {
     return this.creditScoreResource.value();
   }
+
+  public async simulateCreditScore(merchantId: string, monthlySpend: number, totalDebt: number, originalCreditScore: number) {
+    const token = localStorage.getItem('microtrust_token');
+    const response = await fetch(`${environment.apiUrl}/simulate`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        merchant_id: merchantId,
+        monthly_spend: monthlySpend,
+        total_debt: totalDebt,
+        original_credit_score: originalCreditScore
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Simulation failed with status ${response.status}`);
+    }
+    
+    return await response.json();
+  }
 }

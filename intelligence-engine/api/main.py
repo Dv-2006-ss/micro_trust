@@ -178,12 +178,17 @@ def _simulated_shap(structured_data: dict, credit_score: int) -> list:
     liquidity = float(min(90, max(10, int(avg_balance / 300 + txn_count * 2))))
     txn_regularity = float(min(95, max(20, int(txn_count * 3.5 + credit_score / 15))))
     
-    return [
-        {"name": "income_stability", "value": income_stability},
-        {"name": "spending_risk", "value": spending_risk},
-        {"name": "liquidity_buffer", "value": liquidity},
-        {"name": "transaction_regularity", "value": txn_regularity}
+    # Adjust to be positive (helps score) or negative (hurts score)
+    factors = [
+        {"name": "Income Stability", "value": income_stability - 50.0},
+        {"name": "Spending Risk", "value": 40.0 - spending_risk},
+        {"name": "Liquidity Buffer", "value": liquidity - 50.0},
+        {"name": "Transaction Regularity", "value": txn_regularity - 50.0}
     ]
+    
+    # Sort so top positive are first, top negative are last
+    factors.sort(key=lambda x: x["value"], reverse=True)
+    return factors
 
 
 # ── Bank-Aware Smart Card Recommendations ────────────────────────────────
@@ -285,6 +290,12 @@ async def analyze_data(
     request_start = time.monotonic()
 
     try:
+        # 0. Validate File Type
+        valid_mime_types = ["image/jpeg", "image/png", "image/webp", "application/pdf"]
+        if passbook_file.content_type not in valid_mime_types:
+            logger.warning(f"Invalid file type uploaded: {passbook_file.content_type}")
+            raise ValueError(f"Unsupported file type. Please upload a valid image or PDF. Got {passbook_file.content_type}")
+
         # 1. Ephemeral security processing
         file_bytes = await passbook_file.read()
         logger.info(f"Received file for merchant {merchant_id} by user {username}, running secure OCR...")
@@ -479,3 +490,35 @@ async def analyze_data(
     finally:
         gc.collect()
         logger.info("🧹 Post-request gc.collect() complete — memory released.")
+
+from pydantic import BaseModel
+
+class SimulateRequest(BaseModel):
+    merchant_id: str
+    monthly_spend: float
+    total_debt: float
+    original_credit_score: int
+
+@app.post("/simulate")
+async def simulate_credit_score(req: SimulateRequest):
+    """
+    What-If Credit Simulator Endpoint.
+    Adjusts the original credit score based on slider inputs for spend and debt.
+    """
+    logger.info(f"Simulation requested for {req.merchant_id} - Spend: {req.monthly_spend}, Debt: {req.total_debt}")
+    
+    # Simple logic to adjust score: higher spend and debt reduces score
+    # Baseline assumes 0 additional spend/debt
+    spend_penalty = int(req.monthly_spend / 1000) * 2  # -2 points per $1000 spend
+    debt_penalty = int(req.total_debt / 5000) * 5    # -5 points per $5000 debt
+    
+    new_score = req.original_credit_score - spend_penalty - debt_penalty
+    
+    # Clamp the score
+    new_score = max(300, min(850, new_score))
+    
+    return {
+        "merchant_id": req.merchant_id,
+        "simulated_credit_score": new_score,
+        "delta": new_score - req.original_credit_score
+    }

@@ -19,7 +19,7 @@ import * as THREE from 'three';
   imports: [
     CommonModule, RouterModule, ReactiveFormsModule,
     TuiTextfieldComponent, TuiInputDirective,
-    TuiButton, TuiLoader, TuiLabel, TuiCheckbox, TuiBlock
+    TuiLoader, TuiCheckbox
   ],
   template: `
     <div class="auth-viewport">

@@ -123,6 +123,9 @@ class SecureOCRProcessor:
             return structured_json
             
         except Exception as e:
+            if "UnidentifiedImageError" in str(type(e)):
+                logger.error(f"OCR Processing failed: Unidentified Image (File might be corrupted or unsupported format).")
+                raise ValueError("The uploaded image is corrupted or in an unsupported format.")
             logger.error(f"OCR Processing failed: {e}")
             raise e
             

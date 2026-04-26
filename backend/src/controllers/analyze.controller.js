@@ -160,7 +160,7 @@ export const analyzePassbook = async (req, res, next) => {
                         try { errorBody = await response.text(); } catch (_) { errorBody = '(unreadable)'; }
                         console.error(`[Python API Error] Status: ${response.status}, Body: ${errorBody} (attempt ${attempt}/${MAX_ANALYZE_RETRIES})`);
 
-                        if ([429, 502, 503, 504].includes(response.status) && attempt < MAX_ANALYZE_RETRIES) {
+                        if ([429, 500, 502, 503, 504].includes(response.status) && attempt < MAX_ANALYZE_RETRIES) {
                             // Exponential backoff: 15s → 30s → 60s for 429
                             const delay = response.status === 429
                                 ? Math.min(60000, ANALYZE_RETRY_DELAY * Math.pow(2, attempt - 1))
@@ -251,11 +251,60 @@ export const analyzePassbook = async (req, res, next) => {
             });
         }
 
-        // Generic fallback
-        return res.status(500).json({
-            success: false,
-            message: 'AI Engine Handshake Failed',
-            error: error.message
+        // Generic fallback - return partial success instead of 500 to prevent UI crashes
+        return res.status(200).json({
+            status: "partial_success",
+            message: `Analysis encountered an issue: ${error.message.substring(0, 120)}`,
+            merchant_id: req.body.merchant_id || "Unknown",
+            username: req.user ? req.user.username : null,
+            credit_score: null,
+            risk_level: "Medium",
+            approval_status: false,
+            persona: "Unknown",
+            suggested_interest: "16.5%",
+            roast: "Our Node orchestrator hit a speed bump. Hang tight.",
+            note_svg: "",
+            forecast: [],
+            shap: [],
+            recommended_cards: [],
+            banks: []
         });
+    }
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  WHAT-IF CREDIT SIMULATOR
+// ══════════════════════════════════════════════════════════════════════════════
+export const simulateCreditScore = async (req, res) => {
+    const pythonApiUrl = process.env.PYTHON_API_URL;
+    if (!pythonApiUrl) return res.status(500).json({ success: false, error: 'PYTHON_API_URL missing' });
+    
+    const baseUrl = pythonApiUrl.replace(/\/+$/, '');
+    const targetUrl = `${baseUrl}/simulate`;
+
+    try {
+        const { merchant_id, monthly_spend, total_debt, original_credit_score } = req.body;
+
+        const response = await fetch(targetUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                merchant_id,
+                monthly_spend: Number(monthly_spend) || 0,
+                total_debt: Number(total_debt) || 0,
+                original_credit_score: Number(original_credit_score) || 500
+            }),
+            signal: AbortSignal.timeout(10000)
+        });
+
+        if (!response.ok) {
+            throw new Error(`Python API responded with status ${response.status}`);
+        }
+
+        const data = await response.json();
+        return res.json(data);
+    } catch (error) {
+        console.error('[Node.js Orchestrator] ❌ Simulation failed:', error.message);
+        return res.status(500).json({ success: false, error: 'Simulation failed' });
     }
 };
