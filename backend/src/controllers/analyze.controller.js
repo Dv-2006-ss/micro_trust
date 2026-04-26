@@ -1,21 +1,28 @@
 import fs from 'node:fs';
 import { Merchant } from '../models/Merchant.js';
 
-// ── Pre-warm utility: Wake up the Python service before sending heavy payloads ──
-// NOTE: Render free-tier aggressively rate-limits with 429. A 429 means
-// the process IS alive (Render's proxy is responding), so we treat it as
-// a successful warm-up signal rather than a failure.
+// ══════════════════════════════════════════════════════════════════════════════
+//  PRE-WARM UTILITY — Wakes the Python Intelligence Engine from Render sleep
+//
+//  Render free-tier spins down Docker services after 15 min of inactivity.
+//  Cold-starting a Python Docker container with XGBoost + scikit-learn +
+//  Tesseract takes 60-120 seconds.
+//
+//  Strategy: Long-poll the health endpoint with a generous 90-second total
+//  budget. A 429 (Render rate-limit) means the process IS alive.
+// ══════════════════════════════════════════════════════════════════════════════
 async function warmUpPythonService(baseUrl) {
     console.log('[Node.js] 🔥 Pre-warming Python Intelligence Engine...');
     const healthUrl = `${baseUrl}/`;
-    const MAX_WARM_RETRIES = 3;        // Reduced: fewer pings = less rate-limiting
-    const WARM_RETRY_DELAY = 10000;    // 10s between pings to respect Render's limits
+    const MAX_WARM_RETRIES = 6;         // 6 attempts
+    const WARM_RETRY_DELAY = 15000;     // 15s between pings (total budget: ~90s)
+    const PING_TIMEOUT = 20000;         // 20s per individual ping
 
     for (let attempt = 1; attempt <= MAX_WARM_RETRIES; attempt++) {
         try {
             const resp = await fetch(healthUrl, {
                 method: 'GET',
-                signal: AbortSignal.timeout(30000) // 30s per ping attempt
+                signal: AbortSignal.timeout(PING_TIMEOUT)
             });
 
             if (resp.ok) {
@@ -24,15 +31,21 @@ async function warmUpPythonService(baseUrl) {
                 return true;
             }
 
-            // 429 = Render rate limiter responded → the process IS alive
+            // 429 = Render rate limiter responded → process IS alive
             if (resp.status === 429) {
-                console.log(`[Node.js] ✅ Python Engine is ALIVE (429 = Render rate limit, process running). Proceeding.`);
+                console.log(`[Node.js] ✅ Python Engine is ALIVE (429 = Render rate-limit). Proceeding.`);
                 return true;
             }
 
-            console.warn(`[Node.js] ⚠️ Warm-up got status ${resp.status} (attempt ${attempt}/${MAX_WARM_RETRIES})`);
+            // 503 during startup = Render is still spinning up the container
+            if (resp.status === 503) {
+                console.log(`[Node.js] ⏳ Python Engine returning 503 — container still starting (attempt ${attempt}/${MAX_WARM_RETRIES})`);
+            } else {
+                console.warn(`[Node.js] ⚠️ Warm-up got status ${resp.status} (attempt ${attempt}/${MAX_WARM_RETRIES})`);
+            }
         } catch (err) {
-            console.warn(`[Node.js] ⏳ Warm-up attempt ${attempt}/${MAX_WARM_RETRIES} failed: ${err.message}`);
+            // Timeouts and connection-refused are expected during cold start
+            console.log(`[Node.js] ⏳ Warm-up attempt ${attempt}/${MAX_WARM_RETRIES}: ${err.message} — engine likely still booting`);
         }
 
         if (attempt < MAX_WARM_RETRIES) {
@@ -41,8 +54,10 @@ async function warmUpPythonService(baseUrl) {
         }
     }
 
-    console.warn('[Node.js] ⚠️ Python Engine warm-up inconclusive — proceeding with analysis anyway.');
-    return true; // Don't block the pipeline: /analyze has its own retry logic
+    // Even if warm-up is inconclusive, NEVER block the pipeline.
+    // The /analyze call below has its own retry logic for transient errors.
+    console.warn('[Node.js] ⚠️ Python Engine warm-up inconclusive after 90s — proceeding with analysis anyway.');
+    return true;
 }
 
 export const analyzePassbook = async (req, res, next) => {
@@ -77,8 +92,6 @@ export const analyzePassbook = async (req, res, next) => {
         }
 
         // ── STEP 1: Pre-warm the Python service (critical for Render free tier) ──
-        // This is best-effort: even if warm-up is inconclusive, the /analyze
-        // call below has its own retry loop for transient 502/503/504 errors.
         await warmUpPythonService(baseUrl);
 
         // ── STEP 2: Build the multipart form for the Python Intelligence Engine ─
@@ -105,10 +118,13 @@ export const analyzePassbook = async (req, res, next) => {
         const fileBlob = new Blob([fileBuffer], { type: file.mimetype || 'application/octet-stream' });
         form.append('passbook_file', fileBlob, file.originalname);
 
-        // ── STEP 3: Send analysis request with retry logic ──────────────────────
+        // ── STEP 3: Send analysis request with aggressive retry logic ────────────
+        //    The Python engine may still be warming up even after pre-warm.
+        //    Budget: 3 attempts × 180s timeout = up to 9 minutes max.
         const targetUrl = `${baseUrl}/analyze`;
-        const MAX_ANALYZE_RETRIES = 2;
-        const ANALYZE_RETRY_DELAY = 5000; // 5 seconds between retries
+        const MAX_ANALYZE_RETRIES = 3;
+        const ANALYZE_RETRY_DELAY = 10000;  // 10s between retries
+        const ANALYZE_TIMEOUT = 180000;     // 3 minutes per attempt (ML models are heavy)
         let lastError = null;
         let data = null;
 
@@ -120,12 +136,12 @@ export const analyzePassbook = async (req, res, next) => {
             console.log('[Node.js] ──────────────────────────────────────────────');
 
             try {
-                // ── TIMEOUT HANDLING: 120s timeout for ML model processing ──────
+                // ── TIMEOUT: 180s per attempt for Render cold-start + ML processing ──
                 const response = await fetch(targetUrl, {
                     method: 'POST',
                     body: form,
                     // DO NOT manually set Content-Type header! Native fetch handles the boundary dynamically.
-                    signal: AbortSignal.timeout(120000) // 120 second timeout
+                    signal: AbortSignal.timeout(ANALYZE_TIMEOUT)
                 });
 
                 // ── Handle non-OK responses from Python ─────────────────────────
@@ -138,10 +154,11 @@ export const analyzePassbook = async (req, res, next) => {
                     }
                     console.error(`[Python API Error] Status: ${response.status}, Body: ${errorBody} (attempt ${attempt}/${MAX_ANALYZE_RETRIES})`);
 
-                    // Retry on transient errors (502, 503, 504)
-                    if ([502, 503, 504].includes(response.status) && attempt < MAX_ANALYZE_RETRIES) {
-                        console.log(`[Node.js] Retrying in ${ANALYZE_RETRY_DELAY / 1000}s...`);
-                        await new Promise(resolve => setTimeout(resolve, ANALYZE_RETRY_DELAY));
+                    // Retry on transient errors (429, 502, 503, 504)
+                    if ([429, 502, 503, 504].includes(response.status) && attempt < MAX_ANALYZE_RETRIES) {
+                        const delay = response.status === 429 ? 20000 : ANALYZE_RETRY_DELAY;
+                        console.log(`[Node.js] Retrying in ${delay / 1000}s...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
                         continue;
                     }
 
@@ -214,7 +231,7 @@ export const analyzePassbook = async (req, res, next) => {
             return res.status(504).json({
                 success: false,
                 message: 'AI Engine Handshake Failed',
-                error: 'The Python Intelligence Engine did not respond within 120 seconds. It may be waking up on Render free tier — please retry in 30 seconds.'
+                error: 'The Python Intelligence Engine did not respond within 180 seconds. It may be waking up on Render free tier — please retry in 60 seconds.'
             });
         }
 
