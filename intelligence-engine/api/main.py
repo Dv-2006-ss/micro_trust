@@ -6,6 +6,7 @@ import traceback
 import random
 import gc
 import time
+import asyncio
 
 from processors.ocr_processor import SecureOCRProcessor
 from models.xgboost_classifier import CreditApprovalXGBoost
@@ -292,6 +293,9 @@ async def analyze_data(
         if not structured_data:
             raise ValueError("OCR Processor returned empty structured data.")
         
+        # ── Stage pause: Let frontend ticker advance ──
+        await asyncio.sleep(0.4)
+
         # 2. Unsupervised Clustering (Persona creation)
         raw_text = str(structured_data.get("raw_text", "")).upper()
         
@@ -309,6 +313,9 @@ async def analyze_data(
         }
         cluster_info = kmeans_cluster.predict_persona(kmeans_features)
         
+        # ── Stage pause: K-Means complete ──
+        await asyncio.sleep(0.3)
+        
         # 3. Supervised Classification (Risk Level and Approval prediction)
         risk_prediction = xgb_classifier.predict(structured_data)
         
@@ -317,6 +324,9 @@ async def analyze_data(
         base_score = 300
         score_multiplier = 500
         credit_score = int(base_score + (risk_prediction["approval_probability"] * score_multiplier))
+
+        # ── Stage pause: XGBoost classification complete ──
+        await asyncio.sleep(0.4)
 
         # 4. NLG Roast Engine
         roast = generate_roast(risk_prediction["suggested_risk_level"], credit_score, structured_data)
@@ -334,8 +344,14 @@ async def analyze_data(
             
         note_svg = synthesis_engine.synthesize(note_text)
 
+        # ── Stage pause: Handwriting synthesis complete ──
+        await asyncio.sleep(0.3)
+
         # 5. ARIMA Cash Flow Forecast
         forecast = generate_forecast(credit_score, cluster_info["persona"])
+
+        # ── Stage pause: Forecast computed ──
+        await asyncio.sleep(0.3)
 
         # 6. SHAP Explainability (with timeout protection)
         try:
@@ -346,6 +362,9 @@ async def analyze_data(
 
         # 7. Smart Card Recommendations — bank-aware
         cards = recommend_cards(credit_score, cluster_info["persona"], primary_bank or '')
+
+        # ── Stage pause: Final pipeline step ──
+        await asyncio.sleep(0.3)
 
         # Suggested interest rate with finer granularity
         prob = risk_prediction["approval_probability"]

@@ -33,12 +33,56 @@ export interface AnalysisResponse {
   banks: any[];
 }
 
+// ── Pipeline Stage Model ──────────────────────────────────────────────────
+export interface PipelineStage {
+  id: number;
+  label: string;
+  icon: string;     // Emoji icon for visual flair
+  status: 'pending' | 'active' | 'done' | 'error';
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class ResourceApiService {
   // Parameters for the resource loader
   private queryParams = signal<{ file: File; merchantId: string; pdfPassword?: string; primaryBank?: string } | null>(null);
+
+  // ── Pipeline Live Stage Tracking ────────────────────────────────────────
+  public pipelineStages = signal<PipelineStage[]>([]);
+  public pipelineActive = signal<boolean>(false);
+  private stageTimers: any[] = [];
+
+  // ── Angular 21 Reactive Signals ─────────────────────────────────────────
+  // Computed risk level derived reactively from credit score
+  public riskLevel = computed<string>(() => {
+    const result = this.creditScoreResource.value();
+    if (!result) return 'Unknown';
+    if (result.credit_score >= 700) return 'Low Risk';
+    if (result.credit_score >= 500) return 'Medium Risk';
+    return 'High Risk';
+  });
+
+  // Computed color theme derived reactively from risk level
+  public riskColor = computed<{ primary: string; glow: string; bg: string; label: string }>(() => {
+    const level = this.riskLevel();
+    switch (level) {
+      case 'Low Risk':
+        return { primary: '#10b981', glow: 'rgba(16,185,129,0.5)', bg: 'rgba(16,185,129,0.08)', label: 'text-green-400' };
+      case 'Medium Risk':
+        return { primary: '#f59e0b', glow: 'rgba(245,158,11,0.5)', bg: 'rgba(245,158,11,0.08)', label: 'text-amber-400' };
+      case 'High Risk':
+        return { primary: '#ef4444', glow: 'rgba(239,68,68,0.5)', bg: 'rgba(239,68,68,0.08)', label: 'text-red-400' };
+      default:
+        return { primary: '#6b7280', glow: 'rgba(107,114,128,0.5)', bg: 'rgba(107,114,128,0.08)', label: 'text-gray-400' };
+    }
+  });
+
+  // Computed: has the ai_roast arrived? (triggers Tegaki reactively)
+  public aiRoastReady = computed<string>(() => {
+    const result = this.creditScoreResource.value();
+    return result?.ai_roast || result?.roast || '';
+  });
 
   // New Angular experimental resource API (aligned for v19+)
   // Re-runs the loader automatically whenever the request signal (queryParams) changes
@@ -48,6 +92,9 @@ export class ResourceApiService {
       if (!request) return null as any; // Initial Idle State
 
       console.log(`[Frontend] Initiating Analysis for Merchant: ${request.merchantId}`);
+
+      // ── Start pipeline stage simulation ───────────────────────────
+      this.startPipelineSimulation();
 
       const MAX_RETRIES = 3;
       const RETRY_DELAY_MS = 10000; // 10 seconds between retries (backend pre-warms Python service)
@@ -88,7 +135,12 @@ export class ResourceApiService {
             throw new Error(`API responded with status: ${response.status}`);
           }
 
-          return await response.json();
+          const data = await response.json();
+
+          // ── Complete all pipeline stages ───────────────────────────
+          this.completePipeline();
+
+          return data;
         } catch (error) {
           // On network-level errors, retry if attempts remain
           if (attempt < MAX_RETRIES && error instanceof TypeError) {
@@ -96,15 +148,83 @@ export class ResourceApiService {
             await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
             continue;
           }
+          this.failPipeline();
           console.error('OCR/ML Processing submission failed', error);
           throw error;
         }
       }
 
       // Should not reach here, but safety fallback
+      this.failPipeline();
       throw new Error('Analysis failed after maximum retries');
     }
   });
+
+  // ── Pipeline Stage Simulation ──────────────────────────────────────────
+  // Simulates live progress updates while the backend processes
+  private startPipelineSimulation() {
+    // Clear any previous timers
+    this.stageTimers.forEach(t => clearTimeout(t));
+    this.stageTimers = [];
+
+    const stages: PipelineStage[] = [
+      { id: 1, label: 'Authenticating via Account Aggregator...', icon: '🔐', status: 'active' },
+      { id: 2, label: 'OCR extracting transaction data...', icon: '📄', status: 'pending' },
+      { id: 3, label: 'Feeding 12-month data into XGBoost...', icon: '🧠', status: 'pending' },
+      { id: 4, label: 'K-Means clustering merchant persona...', icon: '📊', status: 'pending' },
+      { id: 5, label: 'RNN identifying liquidity patterns...', icon: '🔬', status: 'pending' },
+      { id: 6, label: 'Computing SHAP feature importance...', icon: '📈', status: 'pending' },
+      { id: 7, label: 'ARIMA forecasting future cash flow...', icon: '📉', status: 'pending' },
+      { id: 8, label: 'AI Manager is writing your roast...', icon: '✍️', status: 'pending' },
+    ];
+
+    this.pipelineStages.set(stages);
+    this.pipelineActive.set(true);
+
+    // Advance each stage with staggered delays
+    const stageDelays = [0, 1500, 3500, 5500, 7500, 9500, 11500, 13500];
+
+    stageDelays.forEach((delay, index) => {
+      if (index === 0) return; // First stage is already active
+
+      const timer = setTimeout(() => {
+        this.pipelineStages.update(current => {
+          return current.map((s, i) => {
+            if (i < index) return { ...s, status: 'done' as const };
+            if (i === index) return { ...s, status: 'active' as const };
+            return s;
+          });
+        });
+      }, delay);
+      this.stageTimers.push(timer);
+    });
+  }
+
+  private completePipeline() {
+    this.stageTimers.forEach(t => clearTimeout(t));
+    this.stageTimers = [];
+
+    // Mark all stages as done
+    this.pipelineStages.update(stages =>
+      stages.map(s => ({ ...s, status: 'done' as const }))
+    );
+
+    // Deactivate after a brief moment so the user sees all green
+    setTimeout(() => {
+      this.pipelineActive.set(false);
+    }, 1500);
+  }
+
+  private failPipeline() {
+    this.stageTimers.forEach(t => clearTimeout(t));
+    this.stageTimers = [];
+
+    // Mark the active stage as error
+    this.pipelineStages.update(stages =>
+      stages.map(s => s.status === 'active' ? { ...s, status: 'error' as const } : s)
+    );
+    this.pipelineActive.set(false);
+  }
 
   // Action dispatcher — now carries primary_bank from stored user
   public analyzePassbook(fileData: File, merchantId: string, pdfPassword?: string) {
@@ -115,6 +235,10 @@ export class ResourceApiService {
 
   public reset() {
     this.queryParams.set(null);
+    this.pipelineStages.set([]);
+    this.pipelineActive.set(false);
+    this.stageTimers.forEach(t => clearTimeout(t));
+    this.stageTimers = [];
   }
 
   // Helper to check if analysis results are available

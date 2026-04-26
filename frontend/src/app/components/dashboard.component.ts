@@ -7,11 +7,13 @@ import { Router } from '@angular/router';
 import { BankTableComponent } from './bank-table.component';
 import { PdfFileCardComponent } from './pdf-file-card.component';
 import { PdfPasswordModalComponent } from './pdf-password-modal.component';
+import { LiveTickerComponent } from './live-ticker.component';
 import { ResourceApiService } from '../services/resource.service';
 import { AuthService } from '../services/auth.service';
 import { PdfSecurityService } from '../services/pdf-security.service';
 import { HistoryService } from '../services/history.service';
 import { TegakiEngineService } from '../services/tegaki-engine.service';
+import { TuiLoader } from '@taiga-ui/core';
 import gsap from 'gsap';
 import * as THREE from 'three';
 import * as _confetti from 'canvas-confetti';
@@ -20,7 +22,7 @@ const confetti = (_confetti as any).default || _confetti;
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, BankTableComponent, PdfFileCardComponent, PdfPasswordModalComponent],
+  imports: [CommonModule, BankTableComponent, PdfFileCardComponent, PdfPasswordModalComponent, LiveTickerComponent, TuiLoader],
   template: `
     <!-- Film grain overlay -->
     <div class="film-grain-overlay" aria-hidden="true"></div>
@@ -206,9 +208,22 @@ const confetti = (_confetti as any).default || _confetti;
         </section>
         }
 
-        <!-- Intelligence Results — only shown after analysis starts -->
+        <!-- ── LIVE PROCESS TICKER — visible during processing ── -->
+        @if (viewState === 'PROCESSING') {
+          <section class="mb-8 animate__animated animate__fadeInUp" style="animation-delay: 0.15s; animation-fill-mode: both;">
+            <app-live-ticker></app-live-ticker>
+          </section>
+        }
+
+        <!-- Intelligence Results — wrapped in TuiLoader for visual reactivity -->
         @if (viewState !== 'AWAITING') {
-        <app-bank-table></app-bank-table>
+          <tui-loader
+            [loading]="resourceService.pipelineActive()"
+            [overlay]="true"
+            class="results-loader"
+            size="l">
+            <app-bank-table></app-bank-table>
+          </tui-loader>
         }
 
         <!-- Save Analysis Button -->
