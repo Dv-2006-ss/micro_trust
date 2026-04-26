@@ -672,6 +672,11 @@ export class DashboardComponent implements AfterViewInit, OnDestroy {
   }
 
   submitAnalysis() {
+    // Guard: prevent double-click / duplicate submissions
+    if (this.resourceService.isAnalyzing()) {
+      console.warn('[Dashboard] Analysis already in progress — ignoring duplicate click.');
+      return;
+    }
     const file = this.pdfService.uploadReadyFile();
     const pdfPassword = this.pdfService.currentPassword();
     if (file) {

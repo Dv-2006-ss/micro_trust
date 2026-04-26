@@ -2,6 +2,22 @@ import fs from 'node:fs';
 import { Merchant } from '../models/Merchant.js';
 
 // ══════════════════════════════════════════════════════════════════════════════
+//  REQUEST SERIALIZATION MUTEX
+//  Render free-tier aggressively rate-limits concurrent requests with 429.
+//  This mutex ensures only ONE request to the Python engine runs at a time.
+//  Concurrent requests queue up and wait for the previous one to finish.
+// ══════════════════════════════════════════════════════════════════════════════
+let _pythonMutex = Promise.resolve();
+
+function withPythonMutex(fn) {
+    let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    const waiting = _pythonMutex.then(() => fn().finally(release));
+    _pythonMutex = gate;
+    return waiting;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 //  PRE-WARM UTILITY — Wakes the Python Intelligence Engine from Render sleep
 //
 //  Render free-tier spins down Docker services after 15 min of inactivity.
@@ -91,101 +107,92 @@ export const analyzePassbook = async (req, res, next) => {
             return res.status(400).json({ success: false, error: 'Missing passbook file.' });
         }
 
-        // ── STEP 1: Pre-warm the Python service (critical for Render free tier) ──
-        await warmUpPythonService(baseUrl);
+        // ══════════════════════════════════════════════════════════════════
+        //  SERIALIZED PYTHON ACCESS — Only ONE request at a time
+        //  Prevents Render's 429 rate-limiter from blocking parallel requests
+        // ══════════════════════════════════════════════════════════════════
+        const data = await withPythonMutex(async () => {
+            // ── STEP 1: Pre-warm the Python service ──────────────────────
+            await warmUpPythonService(baseUrl);
 
-        // ── STEP 2: Build the multipart form for the Python Intelligence Engine ─
-        const form = new FormData();
-        form.append('merchant_id', merchant_id);
+            // ── STEP 2: Build the multipart form ─────────────────────────
+            const form = new FormData();
+            form.append('merchant_id', merchant_id);
 
-        // Pass the authenticated username down to the ephemeral Intelligence Engine
-        if (req.user) {
-            form.append('username', req.user.username);
-        }
+            if (req.user) {
+                form.append('username', req.user.username);
+            }
 
-        if (pdf_password) {
-            form.append('pdf_password', pdf_password);
-        }
+            if (pdf_password) {
+                form.append('pdf_password', pdf_password);
+            }
 
-        const primary_bank = req.body.primary_bank;
-        if (primary_bank) {
-            form.append('primary_bank', primary_bank);
-        }
+            const primary_bank = req.body.primary_bank;
+            if (primary_bank) {
+                form.append('primary_bank', primary_bank);
+            }
 
-        // Creating a Native Blob directly from the multer dump
-        // to pass over the network reliably with Node native fetch
-        const fileBuffer = fs.readFileSync(file.path);
-        const fileBlob = new Blob([fileBuffer], { type: file.mimetype || 'application/octet-stream' });
-        form.append('passbook_file', fileBlob, file.originalname);
+            const fileBuffer = fs.readFileSync(file.path);
+            const fileBlob = new Blob([fileBuffer], { type: file.mimetype || 'application/octet-stream' });
+            form.append('passbook_file', fileBlob, file.originalname);
 
-        // ── STEP 3: Send analysis request with aggressive retry logic ────────────
-        //    The Python engine may still be warming up even after pre-warm.
-        //    Budget: 3 attempts × 180s timeout = up to 9 minutes max.
-        const targetUrl = `${baseUrl}/analyze`;
-        const MAX_ANALYZE_RETRIES = 3;
-        const ANALYZE_RETRY_DELAY = 10000;  // 10s between retries
-        const ANALYZE_TIMEOUT = 180000;     // 3 minutes per attempt (ML models are heavy)
-        let lastError = null;
-        let data = null;
+            // ── STEP 3: Send analysis with retry logic ───────────────────
+            const targetUrl = `${baseUrl}/analyze`;
+            const MAX_ANALYZE_RETRIES = 3;
+            const ANALYZE_RETRY_DELAY = 15000;  // 15s between retries
+            const ANALYZE_TIMEOUT = 180000;     // 3 minutes per attempt
+            let lastError = null;
 
-        for (let attempt = 1; attempt <= MAX_ANALYZE_RETRIES; attempt++) {
-            console.log('[Node.js] ──────────────────────────────────────────────');
-            console.log(`[Node.js] Target Python URL: ${targetUrl}`);
-            console.log(`[Node.js] PYTHON_API_URL env: ${pythonApiUrl}`);
-            console.log(`[Node.js] Streaming file for merchant "${merchant_id}" (attempt ${attempt}/${MAX_ANALYZE_RETRIES})...`);
-            console.log('[Node.js] ──────────────────────────────────────────────');
+            for (let attempt = 1; attempt <= MAX_ANALYZE_RETRIES; attempt++) {
+                console.log('[Node.js] ──────────────────────────────────────────────');
+                console.log(`[Node.js] Streaming to Python for merchant "${merchant_id}" (attempt ${attempt}/${MAX_ANALYZE_RETRIES})...`);
+                console.log('[Node.js] ──────────────────────────────────────────────');
 
-            try {
-                // ── TIMEOUT: 180s per attempt for Render cold-start + ML processing ──
-                const response = await fetch(targetUrl, {
-                    method: 'POST',
-                    body: form,
-                    // DO NOT manually set Content-Type header! Native fetch handles the boundary dynamically.
-                    signal: AbortSignal.timeout(ANALYZE_TIMEOUT)
-                });
+                try {
+                    const response = await fetch(targetUrl, {
+                        method: 'POST',
+                        body: form,
+                        signal: AbortSignal.timeout(ANALYZE_TIMEOUT)
+                    });
 
-                // ── Handle non-OK responses from Python ─────────────────────────
-                if (!response.ok) {
-                    let errorBody = '';
-                    try {
-                        errorBody = await response.text();
-                    } catch (_) {
-                        errorBody = '(could not read response body)';
+                    if (!response.ok) {
+                        let errorBody = '';
+                        try { errorBody = await response.text(); } catch (_) { errorBody = '(unreadable)'; }
+                        console.error(`[Python API Error] Status: ${response.status}, Body: ${errorBody} (attempt ${attempt}/${MAX_ANALYZE_RETRIES})`);
+
+                        if ([429, 502, 503, 504].includes(response.status) && attempt < MAX_ANALYZE_RETRIES) {
+                            // Exponential backoff: 15s → 30s → 60s for 429
+                            const delay = response.status === 429
+                                ? Math.min(60000, ANALYZE_RETRY_DELAY * Math.pow(2, attempt - 1))
+                                : ANALYZE_RETRY_DELAY;
+                            console.log(`[Node.js] Retrying in ${delay / 1000}s...`);
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            continue;
+                        }
+
+                        throw new Error(`Python API responded with status ${response.status}: ${errorBody}`);
                     }
-                    console.error(`[Python API Error] Status: ${response.status}, Body: ${errorBody} (attempt ${attempt}/${MAX_ANALYZE_RETRIES})`);
 
-                    // Retry on transient errors (429, 502, 503, 504)
-                    if ([429, 502, 503, 504].includes(response.status) && attempt < MAX_ANALYZE_RETRIES) {
-                        const delay = response.status === 429 ? 20000 : ANALYZE_RETRY_DELAY;
+                    const result = await response.json();
+                    console.log(`[Node.js] ✅ Analysis complete for merchant "${merchant_id}" — Score: ${result.credit_score}`);
+                    return result;
+
+                } catch (err) {
+                    lastError = err;
+                    console.error(`[Node.js] Attempt ${attempt}/${MAX_ANALYZE_RETRIES} failed: ${err.message}`);
+                    if (attempt < MAX_ANALYZE_RETRIES) {
+                        const delay = ANALYZE_RETRY_DELAY * attempt;
                         console.log(`[Node.js] Retrying in ${delay / 1000}s...`);
                         await new Promise(resolve => setTimeout(resolve, delay));
-                        continue;
                     }
-
-                    return res.status(502).json({
-                        success: false,
-                        message: 'AI Engine Handshake Failed',
-                        error: `Python API responded with status ${response.status}: ${errorBody}`
-                    });
-                }
-
-                data = await response.json();
-                console.log(`[Node.js] ✅ Analysis complete for merchant "${merchant_id}" — Score: ${data.credit_score}`);
-                break; // Success — exit retry loop
-
-            } catch (err) {
-                lastError = err;
-                console.error(`[Node.js] Attempt ${attempt}/${MAX_ANALYZE_RETRIES} failed: ${err.message}`);
-                if (attempt < MAX_ANALYZE_RETRIES) {
-                    console.log(`[Node.js] Retrying in ${ANALYZE_RETRY_DELAY / 1000}s...`);
-                    await new Promise(resolve => setTimeout(resolve, ANALYZE_RETRY_DELAY));
                 }
             }
-        }
 
-        // If all retries exhausted, throw the last error
-        if (!data) {
             throw lastError || new Error('All analysis attempts failed');
+        });
+
+        if (!data) {
+            throw new Error('Analysis returned no data');
         }
 
         // ── Persist to MongoDB (if connected) ────────────────────────────────

@@ -48,6 +48,10 @@ export class ResourceApiService {
   // Parameters for the resource loader
   private queryParams = signal<{ file: File; merchantId: string; pdfPassword?: string; primaryBank?: string } | null>(null);
 
+  // ── Duplicate Request Guard ──────────────────────────────────────────────
+  // Prevents multiple concurrent analysis requests from flooding Render's rate limiter
+  public isAnalyzing = signal<boolean>(false);
+
   // ── Pipeline Live Stage Tracking ────────────────────────────────────────
   public pipelineStages = signal<PipelineStage[]>([]);
   public pipelineActive = signal<boolean>(false);
@@ -90,6 +94,13 @@ export class ResourceApiService {
     params: () => this.queryParams(),
     loader: async ({ params: request }) => {
       if (!request) return null as any; // Initial Idle State
+
+      // ── Guard: Block duplicate concurrent requests ──────────────────
+      if (this.isAnalyzing()) {
+        console.warn('[Frontend] ⚠️ Analysis already in-flight — skipping duplicate request.');
+        return null as any;
+      }
+      this.isAnalyzing.set(true);
 
       console.log(`[Frontend] Initiating Analysis for Merchant: ${request.merchantId}`);
 
@@ -141,6 +152,7 @@ export class ResourceApiService {
 
           // ── Complete all pipeline stages ───────────────────────────
           this.completePipeline();
+          this.isAnalyzing.set(false);
 
           return data;
         } catch (error) {
@@ -151,6 +163,7 @@ export class ResourceApiService {
             continue;
           }
           this.failPipeline();
+          this.isAnalyzing.set(false);
           console.error('OCR/ML Processing submission failed', error);
           throw error;
         }
@@ -158,6 +171,7 @@ export class ResourceApiService {
 
       // Should not reach here, but safety fallback
       this.failPipeline();
+      this.isAnalyzing.set(false);
       throw new Error('Analysis failed after maximum retries');
     }
   });
@@ -230,6 +244,11 @@ export class ResourceApiService {
 
   // Action dispatcher — now carries primary_bank from stored user
   public analyzePassbook(fileData: File, merchantId: string, pdfPassword?: string) {
+    // ── Prevent duplicate concurrent submissions ────────────────────
+    if (this.isAnalyzing()) {
+      console.warn('[Frontend] ⚠️ Analysis already in progress — ignoring duplicate submit.');
+      return;
+    }
     const stored = localStorage.getItem('microtrust_user');
     const primaryBank = stored ? (JSON.parse(stored).primary_bank || '') : '';
     this.queryParams.set({ file: fileData, merchantId, pdfPassword, primaryBank });
