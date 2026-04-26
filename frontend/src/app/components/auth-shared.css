@@ -1,0 +1,337 @@
+/* ═══════════════════════════════════════════════════════════
+   MICRO-TRUST V2 — SHARED AUTH STYLES
+   Premium Glassmorphism + Taiga UI Integration
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Viewport ── */
+.auth-viewport {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  position: relative;
+  overflow: hidden;
+  background: #020617;
+
+  /* Cyber-grid pattern */
+  background-image:
+    linear-gradient(rgba(6,182,212,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(6,182,212,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ── Three.js Canvas ── */
+.auth-bg-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.45;
+}
+
+/* ── Floating Orbs ── */
+.auth-orb {
+  position: absolute;
+  width: 384px;
+  height: 384px;
+  border-radius: 50%;
+  z-index: 1;
+  pointer-events: none;
+  animation: orbFloat 8s ease-in-out infinite alternate;
+}
+@keyframes orbFloat {
+  0%   { transform: translate(0, 0); }
+  100% { transform: translate(15px, -20px); }
+}
+
+/* ── Container ── */
+.auth-container {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 440px;
+}
+
+/* ── Brand Header ── */
+.auth-brand {
+  text-align: center;
+  margin-bottom: 32px;
+}
+.auth-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, rgba(6,182,212,0.2), rgba(99,102,241,0.2));
+  border: 1px solid rgba(6,182,212,0.3);
+  box-shadow: 0 0 24px rgba(6,182,212,0.15);
+}
+.auth-logo-icon {
+  width: 28px;
+  height: 28px;
+  color: #22d3ee;
+}
+.auth-title {
+  font-size: 30px;
+  font-weight: 900;
+  color: white;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+.auth-subtitle {
+  color: rgba(255,255,255,0.35);
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ── Glassmorphism Card ── */
+.auth-glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 32px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    0 32px 64px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255,255,255,0.04);
+  animation: cardAppear 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes cardAppear {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Shake Animation ── */
+.shake {
+  animation: shakeAuth 0.5s cubic-bezier(.36,.07,.19,.97) both !important;
+}
+@keyframes shakeAuth {
+  10%, 90%  { transform: translateX(-2px); }
+  20%, 80%  { transform: translateX(4px); }
+  30%, 50%, 70% { transform: translateX(-6px); }
+  40%, 60%  { transform: translateX(6px); }
+}
+
+/* ── Error Banner ── */
+.auth-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  margin-bottom: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+.auth-error-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: #f87171;
+}
+
+/* ── Form ── */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── Field ── */
+.auth-field {
+  position: relative;
+}
+.auth-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(6, 182, 212, 0.8);
+  margin-bottom: 8px;
+}
+.auth-label-icon {
+  font-size: 14px;
+}
+
+/* ── Field Error ── */
+.auth-field-error {
+  font-size: 11px;
+  font-weight: 600;
+  color: #f87171;
+  margin-top: 5px;
+  padding-left: 2px;
+}
+
+/* ── Taiga UI Input Overrides ── */
+:host ::ng-deep tui-textfield {
+  --tui-background-base: rgba(255, 255, 255, 0.04) !important;
+  --tui-border: rgba(255, 255, 255, 0.1) !important;
+  --tui-text-primary: white !important;
+  border-radius: 12px !important;
+}
+:host ::ng-deep tui-textfield:focus-within {
+  --tui-border: rgba(6, 182, 212, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.06);
+}
+:host ::ng-deep tui-textfield input {
+  color: white !important;
+  font-size: 14px !important;
+}
+:host ::ng-deep tui-textfield input::placeholder {
+  color: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* ── Password Toggle ── */
+.auth-pw-toggle {
+  position: absolute;
+  right: 14px;
+  top: 42px; /* Below label */
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  z-index: 5;
+  outline: none;
+}
+.auth-pw-icon {
+  width: 18px;
+  height: 18px;
+  color: rgba(255,255,255,0.3);
+  transition: color 0.2s ease;
+}
+.auth-pw-toggle:hover .auth-pw-icon {
+  color: rgba(6, 182, 212, 0.8);
+}
+
+/* ── Remember Me ── */
+.auth-remember-row {
+  display: flex;
+  align-items: center;
+}
+.auth-remember-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.auth-remember-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.5);
+}
+:host ::ng-deep [tuiCheckbox] {
+  --tui-background-base: rgba(255,255,255,0.06) !important;
+  --tui-border: rgba(255,255,255,0.15) !important;
+}
+
+/* ── Submit Button ── */
+.auth-submit-btn {
+  width: 100%;
+  padding: 16px 24px;
+  border-radius: 14px;
+  border: none;
+  font-weight: 700;
+  font-size: 15px;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-top: 4px;
+  position: relative;
+  overflow: hidden;
+}
+.auth-submit-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 50%, rgba(255,255,255,0.05) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.auth-submit-btn:hover:not(:disabled)::before { opacity: 1; }
+.auth-submit-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+.auth-submit-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+.auth-submit-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.auth-btn-loader {
+  --tui-background-accent-1: white !important;
+}
+
+/* ── Footer ── */
+.auth-footer {
+  text-align: center;
+  color: rgba(255,255,255,0.35);
+  font-size: 13px;
+  margin-top: 24px;
+}
+.auth-link {
+  font-weight: 700;
+  margin-left: 4px;
+  transition: color 0.2s ease;
+  text-decoration: none;
+}
+
+/* ── Security Badge ── */
+.auth-security-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 24px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.04);
+}
+.auth-badge-lock {
+  width: 14px;
+  height: 14px;
+}
+
+/* ── Slide Down Animation ── */
+.animate-slide-down {
+  animation: slideDownAuth 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes slideDownAuth {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Taiga UI Loader Override for Dark Theme ── */
+:host ::ng-deep tui-loader {
+  --tui-background-base: transparent !important;
+}
+
+/* ── Progress Bar Override ── */
+:host ::ng-deep progress[tuiProgressBar] {
+  --tui-background-neutral-1: rgba(255,255,255,0.06) !important;
+  border-radius: 4px !important;
+  overflow: hidden;
+}
